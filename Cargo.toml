@@ -1,0 +1,13 @@
+[package]
+name = "sg"
+version = "0.1.0"
+authors = ["Ömer Sinan Ağacan <omeragacan@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+clap = "2.33"
+tree-sitter = "0.16.1"
+
+[build-dependencies]
+cc = "1.0.58"
+rustc_tools_util = "0.2.0"
