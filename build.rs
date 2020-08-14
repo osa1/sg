@@ -21,19 +21,35 @@ static RUST_LANG: LangDir = LangDir {
     scanner_cplusplus: false,
 };
 
+impl LangDir {
+    fn scanner_path(&self) -> String {
+        format!("{}/{}", self.path, self.scanner_name)
+    }
+
+    fn parser_path(&self) -> String {
+        format!("{}/parser.c", self.path)
+    }
+}
+
 static LANGS: [&'static LangDir; 2] = [&OCAML_LANG, &RUST_LANG];
 
 fn main() {
     for lang in LANGS.iter() {
+        let scanner_path = lang.scanner_path();
+        let parser_path = lang.parser_path();
+
+        println!("cargo:rerun-if-changed={}", scanner_path);
+        println!("cargo:rerun-if-changed={}", parser_path);
+
         cc::Build::new()
             .include(lang.path)
-            .file(format!("{}/{}", lang.path, lang.scanner_name))
+            .file(scanner_path)
             .cpp(lang.scanner_cplusplus)
             .compile(&format!("{}_scanner", lang.lang_name));
 
         cc::Build::new()
             .include(lang.path)
-            .file(format!("{}/{}", lang.path, "parser.c"))
+            .file(parser_path)
             .compile(&format!("{}_parser", lang.lang_name));
     }
 
