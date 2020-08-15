@@ -1,5 +1,5 @@
 use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg};
-use tree_sitter::{Language, Node, Parser, TreeCursor};
+use tree_sitter::{Language, Node, Parser};
 
 extern "C" {
     fn tree_sitter_rust() -> Language;
@@ -53,19 +53,41 @@ fn main() {
     let tree = parser.parse(contents.as_bytes(), None).unwrap();
 
     let root = tree.root_node();
-    walk(root, 0);
+    walk(pattern, contents.as_bytes(), root, 0);
 }
 
-fn walk(node: Node, level: usize) {
-    indent(level);
-    println!("{:?}", node);
+fn walk(pattern: &str, src: &[u8], node: Node, level: usize) {
+    if node.is_extra() {
+        return;
+    }
+
+    if node.child_count() == 0 {
+        match node.utf8_text(src) {
+            Err(err) => {
+                panic!("Can't decode token: {:?}", err);
+            }
+            Ok(token_str) => {
+                if let Some(_idx) = token_str.find(pattern) {
+                    let pos = node.start_position();
+                    // indent(level);
+                    println!(
+                        "{}:{}: {}",
+                        pos.row,
+                        pos.column,
+                        node.utf8_text(src).unwrap()
+                    );
+                }
+            }
+        }
+    }
 
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        walk(child, level + 4);
+        walk(pattern, src, child, level + 4);
     }
 }
 
+#[allow(dead_code)]
 fn indent(level: usize) {
     for _ in 0..level {
         print!(" ");
