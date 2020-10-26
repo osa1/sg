@@ -1,5 +1,6 @@
-use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg};
 use tree_sitter::{Language, Node, Parser};
+
+mod cli;
 
 extern "C" {
     fn tree_sitter_rust() -> Language;
@@ -7,30 +8,17 @@ extern "C" {
 }
 
 fn main() {
-    let mut version = crate_version!().to_owned();
-    let commit_hash = env!("GIT_HASH");
-    if !commit_hash.is_empty() {
-        version = format!("{} ({})", version, commit_hash);
-    }
-
-    let m = App::new(crate_name!())
-        .version(version.as_str())
-        .about(crate_description!())
-        .author(crate_authors!())
-        .arg(Arg::with_name("rust").long("rust"))
-        .arg(Arg::with_name("ocaml").long("ocaml"))
-        .arg(Arg::with_name("pattern").takes_value(true).required(true))
-        .arg(Arg::with_name("file").takes_value(true).required(true))
-        .get_matches();
-
-    let pattern = m.value_of("pattern").unwrap();
-    let file = m.value_of("file").unwrap();
+    let cli::Args {
+        pattern,
+        file,
+        matches,
+    } = cli::parse_args();
 
     let mut langs: Vec<Language> = vec![];
-    if m.is_present("rust") {
+    if matches.is_present("rust") {
         langs.push(unsafe { tree_sitter_rust() });
     }
-    if m.is_present("ocaml") {
+    if matches.is_present("ocaml") {
         langs.push(unsafe { tree_sitter_ocaml() });
     }
 
@@ -53,7 +41,7 @@ fn main() {
     let tree = parser.parse(contents.as_bytes(), None).unwrap();
 
     let root = tree.root_node();
-    walk(pattern, contents.as_bytes(), root, 0);
+    walk(&pattern, contents.as_bytes(), root, 0);
 }
 
 fn walk(pattern: &str, src: &[u8], node: Node, level: usize) {
@@ -72,8 +60,8 @@ fn walk(pattern: &str, src: &[u8], node: Node, level: usize) {
                     // indent(level);
                     println!(
                         "{}:{}: {}",
-                        pos.row,
-                        pos.column,
+                        pos.row + 1,
+                        pos.column + 1,
                         node.utf8_text(src).unwrap()
                     );
                 }
