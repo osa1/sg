@@ -9,14 +9,14 @@ struct LangDir {
 
 static OCAML_LANG: LangDir = LangDir {
     lang_name: "ocaml",
-    path: "/home/omer/tree-sitter/tree-sitter-ocaml/src",
+    path: "parsers/ocaml/ocaml/src",
     scanner_name: "scanner.cc",
     scanner_cplusplus: true,
 };
 
 static RUST_LANG: LangDir = LangDir {
     lang_name: "rust",
-    path: "/home/omer/tree-sitter/tree-sitter-rust/src",
+    path: "parsers/rust/src",
     scanner_name: "scanner.c",
     scanner_cplusplus: false,
 };
