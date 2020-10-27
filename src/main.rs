@@ -96,14 +96,16 @@ fn main() {
         match_style: ansi_term::Colour::Black.on(ansi_term::Color::Yellow),
     };
 
+    let mut first = true;
+
     if path.is_dir() {
-        walk_path(&path, &cfg);
+        walk_path(&path, &cfg, &mut first);
     } else {
-        search_file(&path, &cfg);
+        search_file(&path, &cfg, &mut first);
     }
 }
 
-fn walk_path(path: &Path, cfg: &Cfg) {
+fn walk_path(path: &Path, cfg: &Cfg, first: &mut bool) {
     let dir_contents = match fs::read_dir(path) {
         Ok(ok) => ok,
         Err(err) => {
@@ -136,18 +138,18 @@ fn walk_path(path: &Path, cfg: &Cfg) {
         };
 
         if meta.is_dir() {
-            walk_path(&path, cfg);
+            walk_path(&path, cfg, first);
         } else {
             if let Some(ext) = path.extension() {
                 if ext == cfg.ext {
-                    search_file(&path, cfg);
+                    search_file(&path, cfg, first);
                 }
             }
         }
     }
 }
 
-fn search_file(path: &Path, cfg: &Cfg) {
+fn search_file(path: &Path, cfg: &Cfg, first: &mut bool) {
     let contents = match fs::read_to_string(path) {
         Ok(ok) => ok,
         Err(err) => {
@@ -165,10 +167,10 @@ fn search_file(path: &Path, cfg: &Cfg) {
     };
 
     let root = tree.root_node();
-    walk_ast(path, cfg, &contents, root);
+    walk_ast(path, cfg, &contents, root, first);
 }
 
-fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node) {
+fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool) {
     let bytes = contents.as_bytes();
 
     // TODO: Generate this lazily
@@ -216,6 +218,12 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node) {
 
                         // Print header (if grouping)
                         if !header_printed && cfg.group {
+                            if *first {
+                                *first = false;
+                            } else {
+                                println!();
+                            }
+
                             if cfg.color {
                                 println!(
                                     "{}{}{}",
