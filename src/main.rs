@@ -28,6 +28,8 @@ struct Cfg {
     file_path_style: ansi_term::Style,
     // Style to use for line numbres
     line_num_style: ansi_term::Style,
+    // Style to use for highlighting matched parts
+    match_style: ansi_term::Style,
 }
 
 fn main() {
@@ -74,6 +76,7 @@ fn main() {
         ext: lang_ext,
         file_path_style: ansi_term::Colour::Green.bold(),
         line_num_style: ansi_term::Colour::Yellow.bold(),
+        match_style: ansi_term::Colour::Black.on(ansi_term::Color::Yellow),
     };
 
     if path.is_dir() {
@@ -225,8 +228,34 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node) {
                             print!("{}:", pos.column + 1);
                         }
 
-                        // Print line TODO highlight match
-                        println!("{}", lines[pos.row]);
+                        // Print line
+                        let line = match lines.get(pos.row) {
+                            Some(ok) => ok,
+                            None => {
+                                eprintln!(
+                                    "Unable to get line {} in {}",
+                                    pos.row,
+                                    path.to_string_lossy()
+                                );
+                                continue;
+                            }
+                        };
+
+                        let before_match = &line[0..pos.column];
+                        let match_ = &line[pos.column..pos.column + cfg.pattern.len()];
+                        let after_match = &line[pos.column + cfg.pattern.len()..];
+                        print!("{}", before_match);
+                        if cfg.color {
+                            print!(
+                                "{}{}{}",
+                                cfg.match_style.prefix(),
+                                match_,
+                                cfg.match_style.suffix()
+                            );
+                        } else {
+                            print!("{}", match_);
+                        }
+                        println!("{}", after_match);
                     }
                 }
             }
