@@ -20,6 +20,8 @@ struct Cfg {
     group: bool,
     // Pattern to search
     pattern: String,
+    // tree-sitter node kind, when available search pattern in this kind of nodes
+    node_kinds: cli::NodeKinds,
     // Match case sensitively?
     case_sensitive: bool,
     // tree-sitter parser
@@ -42,6 +44,7 @@ fn main() {
         nogroup,
         nocolor,
         casing,
+        node_kinds,
         matches,
     } = cli::parse_args();
 
@@ -84,6 +87,7 @@ fn main() {
         column,
         group: !nogroup,
         pattern,
+        node_kinds,
         case_sensitive,
         parser: RefCell::new(parser),
         ext: lang_ext,
@@ -176,12 +180,15 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node) {
     let mut header_printed = false;
 
     while let Some(node) = work.pop() {
-        if node.is_extra() {
-            // Comments, brackets, etc.
-            continue;
-        }
+        let node_kind = node.kind();
 
-        if node.child_count() == 0 {
+        let mut search = false;
+        let is_comment = node_kind == "block_comment" || node_kind == "line_comment";
+        search |= is_comment && cfg.node_kinds.comment;
+        search |= node_kind == "string_literal" && cfg.node_kinds.string;
+        search |= !is_comment && node.child_count() == 0 && cfg.node_kinds.identifier;
+
+        if search {
             match node.utf8_text(bytes) {
                 Err(err) => {
                     eprintln!(

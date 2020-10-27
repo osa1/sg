@@ -12,6 +12,8 @@ pub(crate) struct Args<'a> {
     pub(crate) nocolor: bool,
     /// Case sensitivity
     pub(crate) casing: Casing,
+    /// tree-sitter node kinds. When specified only search the pattern in these kinds of nodes.
+    pub(crate) node_kinds: NodeKinds,
     /// Rest of the matches (`--rust`, `--ocaml` etc.)
     pub(crate) matches: ArgMatches<'a>,
 }
@@ -24,6 +26,16 @@ pub(crate) enum Casing {
     Sensitive,
     /// Match case insensitively
     Insensitive,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct NodeKinds {
+    /// Search in identifiers and keywords
+    pub(crate) identifier: bool,
+    /// Search in string literals
+    pub(crate) string: bool,
+    /// Search in comments
+    pub(crate) comment: bool,
 }
 
 pub(crate) fn parse_args<'a>() -> Args<'a> {
@@ -97,11 +109,18 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
                 .help("Match case insensitively")
                 .short("i"),
         )
+        .arg(
+            Arg::with_name("kind")
+            .takes_value(true)
+            .required(false)
+            .short("k")
+            .long("kind")
+            .long_help(KIND_HELP_STR))
         .after_help(EXAMPLES_STR)
         .get_matches();
 
-    let pattern = m.value_of("pattern").unwrap().to_owned();
-    let path = m.value_of("path").map(|s| s.to_owned());
+    let pattern = m.value_of("PATTERN").unwrap().to_owned();
+    let path = m.value_of("PATH").map(|s| s.to_owned());
     let column = m.is_present("column");
     let nogroup = m.is_present("nogroup");
     let nocolor = m.is_present("nocolor");
@@ -122,6 +141,39 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         Some((casing, _)) => *casing,
     };
 
+    let node_kinds = match m.value_of("kind") {
+        Some(val) => {
+            let mut kinds = NodeKinds {
+                identifier: false,
+                comment: false,
+                string: false,
+            };
+            for kind in val.trim().split(',') {
+                match kind {
+                    "identifier" => {
+                        kinds.identifier = true;
+                    }
+                    "comment" => {
+                        kinds.comment = true;
+                    }
+                    "string" => {
+                        kinds.string = true;
+                    }
+                    other => {
+                        eprintln!("Invalid kind: {}, expected a comma-separated list of: 'identifier', 'comment', 'string'", other);
+                        ::std::process::exit(1);
+                    }
+                }
+            }
+            kinds
+        }
+        None => NodeKinds {
+            identifier: true,
+            comment: false,
+            string: false,
+        },
+    };
+
     Args {
         pattern,
         path,
@@ -129,6 +181,7 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         nogroup,
         nocolor,
         casing,
+        node_kinds,
         matches: m,
     }
 }
@@ -139,5 +192,14 @@ EXAMPLES:
     Search for 'needle' in Rust (.rs) files
         sg --rust needle
 
-    Search for 'needle' case sensitively in OCaml files in  given directory or file
+    Search for 'needle' in Rust (.rs) files, in comments and string literals
+        sg --rust needle --kind comment,string
+
+    Search for 'needle' case sensitively in OCaml files in given directory or file
         sg --ocaml needle path -s";
+
+#[rustfmt::skip]
+static KIND_HELP_STR: &str = "\
+Comma-separated list of AST node kinds. When specified only search pattern in these kind of tree-sitter nodes. Possible values: 'identifier' (for identifiers and keywords), 'comment' (for comments), 'string' (for string literals). Default is 'identifier'.
+
+Example: --kind identifier,comment,string";
