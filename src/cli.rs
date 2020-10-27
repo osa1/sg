@@ -10,8 +10,20 @@ pub(crate) struct Args<'a> {
     pub(crate) nogroup: bool,
     /// Colored output
     pub(crate) nocolor: bool,
+    /// Case sensitivity
+    pub(crate) casing: Casing,
     /// Rest of the matches (`--rust`, `--ocaml` etc.)
     pub(crate) matches: ArgMatches<'a>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Casing {
+    /// Match case sensitively unless the pattern contains uppercase chars
+    Smart,
+    /// Match case sensitively
+    Sensitive,
+    /// Match case insensitively
+    Insensitive,
 }
 
 pub(crate) fn parse_args<'a>() -> Args<'a> {
@@ -44,6 +56,24 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         )
         .arg(Arg::with_name("nogroup").takes_value(false).long("nogroup"))
         .arg(Arg::with_name("column").takes_value(false).long("column"))
+        .arg(
+            Arg::with_name("smart-case")
+                .takes_value(false)
+                .long("smart-case")
+                .short("S"),
+        )
+        .arg(
+            Arg::with_name("case-sensitive")
+                .takes_value(false)
+                .long("case-sensitive")
+                .short("s"),
+        )
+        .arg(
+            Arg::with_name("ignore-case")
+                .takes_value(false)
+                .long("ignore-case")
+                .short("i"),
+        )
         .get_matches();
 
     let pattern = m.value_of("pattern").unwrap().to_owned();
@@ -52,12 +82,29 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
     let nogroup = m.is_present("nogroup");
     let nocolor = m.is_present("nocolor");
 
+    let smart_case_pos = m.index_of("smart-case").map(|idx| (Casing::Smart, idx));
+    let case_sensitive_pos = m
+        .index_of("case-sensitive")
+        .map(|idx| (Casing::Sensitive, idx));
+    let ignore_case_pos = m
+        .index_of("ignore-case")
+        .map(|idx| (Casing::Insensitive, idx));
+
+    let mut casing_args = vec![smart_case_pos, case_sensitive_pos, ignore_case_pos];
+    casing_args.sort_by_key(|arg| arg.as_ref().map(|(_, idx)| *idx));
+
+    let casing = match casing_args.last().unwrap() {
+        None => Casing::Smart,
+        Some((casing, _)) => *casing,
+    };
+
     Args {
         pattern,
         path,
         column,
         nogroup,
         nocolor,
+        casing,
         matches: m,
     }
 }

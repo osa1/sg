@@ -20,6 +20,8 @@ struct Cfg {
     group: bool,
     // Pattern to search
     pattern: String,
+    // Match case sensitively?
+    case_sensitive: bool,
     // tree-sitter parser
     parser: RefCell<Parser>,
     // Extension of files to search
@@ -34,11 +36,12 @@ struct Cfg {
 
 fn main() {
     let cli::Args {
-        pattern,
+        mut pattern,
         path,
         column,
         nogroup,
         nocolor,
+        casing,
         matches,
     } = cli::parse_args();
 
@@ -67,11 +70,21 @@ fn main() {
         .map(|s| s.into())
         .unwrap_or_else(|| std::env::current_dir().unwrap());
 
+    let case_sensitive = match casing {
+        cli::Casing::Smart => pattern.chars().any(char::is_uppercase),
+        cli::Casing::Sensitive => true,
+        cli::Casing::Insensitive => {
+            pattern = pattern.to_lowercase();
+            false
+        }
+    };
+
     let cfg = Cfg {
         color: !nocolor,
         column,
         group: !nogroup,
         pattern,
+        case_sensitive,
         parser: RefCell::new(parser),
         ext: lang_ext,
         file_path_style: ansi_term::Colour::Green.bold(),
@@ -179,7 +192,13 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node) {
                     continue;
                 }
                 Ok(token_str) => {
-                    if let Some(match_start) = token_str.find(&cfg.pattern) {
+                    let match_ = if cfg.case_sensitive {
+                        token_str.find(&cfg.pattern)
+                    } else {
+                        token_str.to_lowercase().find(&cfg.pattern)
+                    };
+
+                    if let Some(match_start) = match_ {
                         let pos = node.start_position();
                         let line = pos.row;
                         let column = pos.column + match_start;
