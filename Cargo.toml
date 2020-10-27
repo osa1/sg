@@ -1,9 +1,11 @@
 [package]
 name = "sg"
+description = "A syntax-aware grep-like code search tool"
 version = "0.1.0"
 authors = ["Ömer Sinan Ağacan <omeragacan@gmail.com>"]
+license = "MIT"
 edition = "2018"
-description = "DESCRIPTION HERE"
+repository = "https://github.com/osa1/sg"
 
 [dependencies]
 ansi_term = "0.12"
