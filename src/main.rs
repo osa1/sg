@@ -179,8 +179,10 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node) {
                     continue;
                 }
                 Ok(token_str) => {
-                    if let Some(_idx) = token_str.find(&cfg.pattern) {
+                    if let Some(match_start) = token_str.find(&cfg.pattern) {
                         let pos = node.start_position();
+                        let line = pos.row;
+                        let column = pos.column + match_start;
 
                         // Print header (if grouping)
                         if !header_printed && cfg.group {
@@ -216,16 +218,16 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node) {
                             print!(
                                 "{}{}{}:",
                                 cfg.line_num_style.prefix(),
-                                pos.row + 1,
+                                line + 1,
                                 cfg.line_num_style.suffix()
                             );
                         } else {
-                            print!("{}:", pos.row + 1);
+                            print!("{}:", line + 1);
                         }
 
                         // Print column number (if enabled)
                         if cfg.column {
-                            print!("{}:", pos.column + 1);
+                            print!("{}:", column + 1);
                         }
 
                         // Print line
@@ -241,9 +243,9 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node) {
                             }
                         };
 
-                        let before_match = &line[0..pos.column];
-                        let match_ = &line[pos.column..pos.column + cfg.pattern.len()];
-                        let after_match = &line[pos.column + cfg.pattern.len()..];
+                        let before_match = &line[0..column];
+                        let match_ = &line[column..column + cfg.pattern.len()];
+                        let after_match = &line[column + cfg.pattern.len()..];
                         print!("{}", before_match);
                         if cfg.color {
                             print!(
