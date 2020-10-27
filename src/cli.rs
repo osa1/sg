@@ -3,7 +3,14 @@ use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg
 #[derive(Debug)]
 pub(crate) struct Args<'a> {
     pub(crate) pattern: String,
-    pub(crate) file: String,
+    pub(crate) path: Option<String>,
+    /// Show column number
+    pub(crate) column: bool,
+    /// Don't group matches by files
+    pub(crate) nogroup: bool,
+    /// Colored output
+    pub(crate) nocolor: bool,
+    /// Rest of the matches (`--rust`, `--ocaml` etc.)
     pub(crate) matches: ArgMatches<'a>,
 }
 
@@ -21,15 +28,36 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         .arg(Arg::with_name("rust").long("rust"))
         .arg(Arg::with_name("ocaml").long("ocaml"))
         .arg(Arg::with_name("pattern").takes_value(true).required(true))
-        .arg(Arg::with_name("file").takes_value(true).required(true))
+        .arg(Arg::with_name("path").takes_value(true).required(false))
+        .arg(
+            Arg::with_name("color")
+                .takes_value(false)
+                .long("color")
+                .overrides_with("nocolor"),
+        )
+        .arg(Arg::with_name("nocolor").takes_value(false).long("nocolor"))
+        .arg(
+            Arg::with_name("group")
+                .takes_value(false)
+                .long("group")
+                .overrides_with("nogroup"),
+        )
+        .arg(Arg::with_name("nogroup").takes_value(false).long("nogroup"))
+        .arg(Arg::with_name("column").takes_value(false).long("column"))
         .get_matches();
 
     let pattern = m.value_of("pattern").unwrap().to_owned();
-    let file = m.value_of("file").unwrap().to_owned();
+    let path = m.value_of("path").map(|s| s.to_owned());
+    let column = m.is_present("column");
+    let nogroup = m.is_present("nogroup");
+    let nocolor = m.is_present("nocolor");
 
     Args {
         pattern,
-        file,
+        path,
+        column,
+        nogroup,
+        nocolor,
         matches: m,
     }
 }
