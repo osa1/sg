@@ -97,6 +97,7 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
                 .help("Match case insensitively")
                 .short("i"),
         )
+        .after_help(EXAMPLES_STR)
         .get_matches();
 
     let pattern = m.value_of("pattern").unwrap().to_owned();
@@ -131,3 +132,12 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         matches: m,
     }
 }
+
+#[rustfmt::skip]
+static EXAMPLES_STR: &str = "\
+EXAMPLES:
+    Search for 'needle' in Rust (.rs) files
+        sg --rust needle
+
+    Search for 'needle' case sensitively in OCaml files in  given directory or file
+        sg --ocaml needle path -s";
