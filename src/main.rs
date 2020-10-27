@@ -165,7 +165,7 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node) {
     while let Some(node) = work.pop() {
         if node.is_extra() {
             // Comments, brackets, etc.
-            return;
+            continue;
         }
 
         if node.child_count() == 0 {
