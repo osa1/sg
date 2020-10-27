@@ -207,8 +207,12 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node) {
 
                     if let Some(match_start) = match_ {
                         let pos = node.start_position();
-                        let line = pos.row;
-                        let column = pos.column + match_start;
+
+                        let (token_line, token_col) =
+                            get_token_line_col(token_str, pos.column, match_start);
+
+                        let line = pos.row + token_line;
+                        let column = token_col;
 
                         // Print header (if grouping)
                         if !header_printed && cfg.group {
@@ -257,7 +261,7 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node) {
                         }
 
                         // Print line
-                        let line = match lines.get(pos.row) {
+                        let line = match lines.get(line) {
                             Some(ok) => ok,
                             None => {
                                 eprintln!(
@@ -294,4 +298,23 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node) {
             work.push(child);
         }
     }
+}
+
+fn get_token_line_col(token: &str, column0: usize, idx: usize) -> (usize, usize) {
+    let mut chars = token.chars();
+
+    let mut line = 0;
+    let mut col = column0;
+
+    for _ in 0..idx {
+        let c = chars.next();
+        if c == Some('\n') {
+            line += 1;
+            col = 0;
+        } else {
+            col += 1;
+        }
+    }
+
+    (line, col)
 }
