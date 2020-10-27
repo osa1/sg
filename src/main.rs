@@ -24,6 +24,10 @@ struct Cfg {
     parser: RefCell<Parser>,
     // Extension of files to search
     ext: &'static str,
+    // Style to use for file paths
+    file_path_style: ansi_term::Style,
+    // Style to use for line numbres
+    line_num_style: ansi_term::Style,
 }
 
 fn main() {
@@ -68,6 +72,8 @@ fn main() {
         pattern,
         parser: RefCell::new(parser),
         ext: lang_ext,
+        file_path_style: ansi_term::Colour::Green.bold(),
+        line_num_style: ansi_term::Colour::Yellow.bold(),
     };
 
     if path.is_dir() {
@@ -139,35 +145,96 @@ fn search_file(path: &Path, cfg: &Cfg) {
     };
 
     let root = tree.root_node();
-    walk_ast(&cfg.pattern, contents.as_bytes(), root);
+    walk_ast(path, cfg, &contents, root);
 }
 
-fn walk_ast(pattern: &str, src: &[u8], node: Node) {
-    if node.is_extra() {
-        return;
-    }
+fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node) {
+    let bytes = contents.as_bytes();
 
-    if node.child_count() == 0 {
-        match node.utf8_text(src) {
-            Err(err) => {
-                panic!("Can't decode token: {:?}", err);
-            }
-            Ok(token_str) => {
-                if let Some(_idx) = token_str.find(pattern) {
-                    let pos = node.start_position();
-                    println!(
-                        "{}:{}: {}",
-                        pos.row + 1,
-                        pos.column + 1,
-                        node.utf8_text(src).unwrap()
+    // TODO: Generate this lazily
+    let lines: Vec<&str> = contents.lines().collect();
+
+    let mut work = vec![node];
+
+    // Did we print the file name? Only used with `cfg.group`
+    let mut header_printed = false;
+
+    while let Some(node) = work.pop() {
+        if node.is_extra() {
+            // Comments, brackets, etc.
+            return;
+        }
+
+        if node.child_count() == 0 {
+            match node.utf8_text(bytes) {
+                Err(err) => {
+                    eprintln!(
+                        "Unable to decode token {:?} in {}",
+                        err,
+                        path.to_string_lossy()
                     );
+                    continue;
+                }
+                Ok(token_str) => {
+                    if let Some(_idx) = token_str.find(&cfg.pattern) {
+                        let pos = node.start_position();
+
+                        // Print header (if grouping)
+                        if !header_printed && cfg.group {
+                            if cfg.color {
+                                println!(
+                                    "{}{}{}",
+                                    cfg.file_path_style.prefix(),
+                                    path.to_string_lossy(),
+                                    cfg.file_path_style.suffix()
+                                );
+                            } else {
+                                println!("{}", path.to_string_lossy());
+                            }
+                            header_printed = true;
+                        }
+
+                        // Print file path for the match (if not grouping)
+                        if !cfg.group {
+                            if cfg.color {
+                                print!(
+                                    "{}{}{}:",
+                                    cfg.file_path_style.prefix(),
+                                    path.to_string_lossy(),
+                                    cfg.file_path_style.suffix()
+                                );
+                            } else {
+                                print!("{}:", path.to_string_lossy());
+                            }
+                        }
+
+                        // Print line number
+                        if cfg.color {
+                            print!(
+                                "{}{}{}:",
+                                cfg.line_num_style.prefix(),
+                                pos.row + 1,
+                                cfg.line_num_style.suffix()
+                            );
+                        } else {
+                            print!("{}:", pos.row + 1);
+                        }
+
+                        // Print column number (if enabled)
+                        if cfg.column {
+                            print!("{}:", pos.column + 1);
+                        }
+
+                        // Print line TODO highlight match
+                        println!("{}", lines[pos.row]);
+                    }
                 }
             }
         }
-    }
 
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        walk_ast(pattern, src, child);
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            work.push(child);
+        }
     }
 }
