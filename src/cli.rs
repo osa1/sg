@@ -189,14 +189,14 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
 #[rustfmt::skip]
 static EXAMPLES_STR: &str = "\
 EXAMPLES:
-    Search for 'needle' in Rust (.rs) files
-        sg --rust needle
+    Search for 'fun' in Rust (.rs) files
+        sg --rust fun
 
-    Search for 'needle' in Rust (.rs) files, in comments and string literals
-        sg --rust needle --kind comment,string
+    Search for 'fun' in Rust (.rs) files, in comments and string literals
+        sg --rust fun --kind comment,string
 
-    Search for 'needle' case sensitively in OCaml files in given directory or file
-        sg --ocaml needle path -s";
+    Search for 'fun' case sensitively in OCaml files in given directory or file
+        sg --ocaml fun path -s";
 
 #[rustfmt::skip]
 static KIND_HELP_STR: &str = "\
