@@ -37,41 +37,64 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         .version(version.as_str())
         .about(crate_description!())
         .author(crate_authors!())
-        .arg(Arg::with_name("rust").long("rust"))
-        .arg(Arg::with_name("ocaml").long("ocaml"))
-        .arg(Arg::with_name("pattern").takes_value(true).required(true))
-        .arg(Arg::with_name("path").takes_value(true).required(false))
+        .arg(
+            Arg::with_name("rust")
+                .long("rust")
+                .help("Search Rust files"),
+        )
+        .arg(
+            Arg::with_name("ocaml")
+                .long("ocaml")
+                .help("Search OCaml files"),
+        )
+        .arg(Arg::with_name("PATTERN").takes_value(true).required(true))
+        .arg(Arg::with_name("PATH").takes_value(true).required(false))
         .arg(
             Arg::with_name("color")
                 .takes_value(false)
                 .long("color")
+                .help("Colored output (enabled by default)")
                 .overrides_with("nocolor"),
         )
-        .arg(Arg::with_name("nocolor").takes_value(false).long("nocolor"))
+        .arg(
+            Arg::with_name("nocolor")
+                .takes_value(false)
+                .long("nocolor")
+                .help("Disable colored output"),
+        )
         .arg(
             Arg::with_name("group")
                 .takes_value(false)
                 .long("group")
+                .help("Group matches by file name, print file name once before matches (enabled by default)")
                 .overrides_with("nogroup"),
         )
-        .arg(Arg::with_name("nogroup").takes_value(false).long("nogroup"))
-        .arg(Arg::with_name("column").takes_value(false).long("column"))
+        .arg(Arg::with_name("nogroup").takes_value(false).long("nogroup").help("Print file name in each match"))
+        .arg(
+            Arg::with_name("column")
+                .takes_value(false)
+                .long("column")
+                .help("Print column numbers in results (disabled by default)"),
+        )
         .arg(
             Arg::with_name("smart-case")
                 .takes_value(false)
                 .long("smart-case")
+                .help("Match case insensitively unless PATTERN contains uppercase characters (enabled by default)")
                 .short("S"),
         )
         .arg(
             Arg::with_name("case-sensitive")
                 .takes_value(false)
                 .long("case-sensitive")
+                .help("Match case sensitively")
                 .short("s"),
         )
         .arg(
             Arg::with_name("ignore-case")
                 .takes_value(false)
                 .long("ignore-case")
+                .help("Match case insensitively")
                 .short("i"),
         )
         .get_matches();
