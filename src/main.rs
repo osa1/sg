@@ -24,6 +24,8 @@ struct Cfg {
     node_kinds: cli::NodeKinds,
     // Match case sensitively?
     case_sensitive: bool,
+    // Only match whole words?
+    whole_word: bool,
     // tree-sitter parser
     parser: RefCell<Parser>,
     // Extension of files to search
@@ -44,6 +46,7 @@ fn main() {
         nogroup,
         nocolor,
         casing,
+        whole_word,
         node_kinds,
         matches,
     } = cli::parse_args();
@@ -89,6 +92,7 @@ fn main() {
         pattern,
         node_kinds,
         case_sensitive,
+        whole_word,
         parser: RefCell::new(parser),
         ext: lang_ext,
         file_path_style: ansi_term::Colour::Green.bold(),
@@ -188,7 +192,9 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool
         let is_comment = node_kind == "block_comment" || node_kind == "line_comment";
         search |= is_comment && cfg.node_kinds.comment;
         search |= node_kind == "string_literal" && cfg.node_kinds.string;
-        search |= !is_comment && node.child_count() == 0 && cfg.node_kinds.identifier;
+
+        let is_id = !is_comment && node.child_count() == 0 && cfg.node_kinds.identifier;
+        search |= is_id;
 
         if search {
             match node.utf8_text(bytes) {
@@ -201,10 +207,26 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool
                     continue;
                 }
                 Ok(token_str) => {
-                    let match_ = if cfg.case_sensitive {
-                        token_str.find(&cfg.pattern)
+                    let match_: Option<usize> = if cfg.case_sensitive {
+                        if is_id && cfg.whole_word {
+                            if token_str == cfg.pattern {
+                                Some(0)
+                            } else {
+                                None
+                            }
+                        } else {
+                            token_str.find(&cfg.pattern)
+                        }
                     } else {
-                        token_str.to_lowercase().find(&cfg.pattern)
+                        if is_id && cfg.whole_word {
+                            if token_str.to_lowercase() == cfg.pattern {
+                                Some(0)
+                            } else {
+                                None
+                            }
+                        } else {
+                            token_str.to_lowercase().find(&cfg.pattern)
+                        }
                     };
 
                     if let Some(match_start) = match_ {

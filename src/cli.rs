@@ -12,6 +12,8 @@ pub(crate) struct Args<'a> {
     pub(crate) nocolor: bool,
     /// Case sensitivity
     pub(crate) casing: Casing,
+    /// Only match whole words?
+    pub(crate) whole_word: bool,
     /// tree-sitter node kinds. When specified only search the pattern in these kinds of nodes.
     pub(crate) node_kinds: NodeKinds,
     /// Rest of the matches (`--rust`, `--ocaml` etc.)
@@ -110,6 +112,13 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
                 .short("i"),
         )
         .arg(
+            Arg::with_name("word")
+            .takes_value(false)
+            .long("word")
+            .short("w")
+            .help("Only match whole words. Currently only works when searching identifiers.")
+        )
+        .arg(
             Arg::with_name("kind")
             .takes_value(true)
             .required(false)
@@ -124,6 +133,7 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
     let column = m.is_present("column");
     let nogroup = m.is_present("nogroup");
     let nocolor = m.is_present("nocolor");
+    let whole_word = m.is_present("word");
 
     let smart_case_pos = m.index_of("smart-case").map(|idx| (Casing::Smart, idx));
     let case_sensitive_pos = m
@@ -181,6 +191,7 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         nogroup,
         nocolor,
         casing,
+        whole_word,
         node_kinds,
         matches: m,
     }
