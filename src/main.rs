@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::fs;
 use std::path::Path;
@@ -207,33 +208,27 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool
                     continue;
                 }
                 Ok(token_str) => {
-                    let match_: Option<usize> = if cfg.case_sensitive {
-                        if is_id && cfg.whole_word {
-                            if token_str == cfg.pattern {
-                                Some(0)
-                            } else {
-                                None
-                            }
+                    let token_str: Cow<'_, str> = if cfg.case_sensitive {
+                        Cow::Owned(token_str.to_lowercase())
+                    } else {
+                        Cow::Borrowed(token_str)
+                    };
+
+                    let match_: Option<usize> = if is_id && cfg.whole_word {
+                        if token_str == cfg.pattern {
+                            Some(0)
                         } else {
-                            token_str.find(&cfg.pattern)
+                            None
                         }
                     } else {
-                        if is_id && cfg.whole_word {
-                            if token_str.to_lowercase() == cfg.pattern {
-                                Some(0)
-                            } else {
-                                None
-                            }
-                        } else {
-                            token_str.to_lowercase().find(&cfg.pattern)
-                        }
+                        token_str.find(&cfg.pattern)
                     };
 
                     if let Some(match_start) = match_ {
                         let pos = node.start_position();
 
                         let (token_line, token_col) =
-                            get_token_line_col(token_str, pos.column, match_start);
+                            get_token_line_col(token_str.as_ref(), pos.column, match_start);
 
                         let line = pos.row + token_line;
                         let column = token_col;
