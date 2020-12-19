@@ -116,7 +116,7 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
             .takes_value(false)
             .long("word")
             .short("w")
-            .help("Only match whole words. Currently only works when searching identifiers.")
+            .help("Only match whole words")
         )
         .arg(
             Arg::with_name("kind")

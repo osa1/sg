@@ -220,6 +220,21 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool
                         } else {
                             None
                         }
+                    } else if cfg.whole_word {
+                        match token_str.find(&cfg.pattern) {
+                            None => None,
+                            Some(idx) => {
+                                if check_word_bounds(
+                                    token_str.as_ref(),
+                                    idx,
+                                    idx + cfg.pattern.len(),
+                                ) {
+                                    Some(idx)
+                                } else {
+                                    None
+                                }
+                            }
+                        }
                     } else {
                         token_str.find(&cfg.pattern)
                     };
@@ -342,4 +357,35 @@ fn get_token_line_col(token: &str, column0: usize, idx: usize) -> (usize, usize)
     }
 
     (line, col)
+}
+
+fn check_word_bounds(text: &str, match_begin: usize, match_end: usize) -> bool {
+    if let Some(char) = text[..match_begin].chars().next_back() {
+        if char.is_alphabetic() {
+            return false;
+        }
+    }
+
+    if let Some(char) = text[match_end..].chars().next() {
+        if char.is_alphabetic() {
+            return false;
+        }
+    }
+
+    true
+}
+
+#[test]
+fn test_word_bounds() {
+    assert!(check_word_bounds("test", 0, 4));
+    assert!(!check_word_bounds("test", 0, 3));
+    assert!(!check_word_bounds("test", 1, 4));
+    assert!(!check_word_bounds("test", 1, 3));
+    assert!(!check_word_bounds("test", 1, 2));
+    assert!(!check_word_bounds("test", 2, 3));
+    assert!(!check_word_bounds("test", 2, 2));
+
+    assert!(check_word_bounds("a b c", 2, 3));
+    assert!(!check_word_bounds("a b c", 2, 4));
+    assert!(check_word_bounds("a b c", 2, 5));
 }
