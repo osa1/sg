@@ -144,11 +144,9 @@ fn walk_path(path: &Path, cfg: &Cfg, first: &mut bool) {
 
         if meta.is_dir() {
             walk_path(&path, cfg, first);
-        } else {
-            if let Some(ext) = path.extension() {
-                if ext == cfg.ext {
-                    search_file(&path, cfg, first);
-                }
+        } else if let Some(ext) = path.extension() {
+            if ext == cfg.ext {
+                search_file(&path, cfg, first);
             }
         }
     }

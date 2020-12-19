@@ -31,7 +31,7 @@ impl LangDir {
     }
 }
 
-static LANGS: [&'static LangDir; 2] = [&OCAML_LANG, &RUST_LANG];
+static LANGS: [&LangDir; 2] = [&OCAML_LANG, &RUST_LANG];
 
 fn main() {
     for lang in LANGS.iter() {
