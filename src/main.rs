@@ -6,6 +6,7 @@ use std::path::Path;
 use tree_sitter::{Language, Node, Parser};
 
 mod cli;
+mod dynamic;
 
 extern "C" {
     fn tree_sitter_rust() -> Language;
@@ -49,6 +50,8 @@ fn main() {
         casing,
         whole_word,
         node_kinds,
+        parser,
+        lang,
         matches,
     } = cli::parse_args();
 
@@ -60,6 +63,15 @@ fn main() {
 
     if matches.is_present("ocaml") {
         lang = Some((unsafe { tree_sitter_ocaml() }, "ml"));
+    }
+
+    if let Some(lib_path) = parser {
+        match dynamic::load_parser(lib_path, lang.as_ref()) {
+            Err(err) => todo!(),
+            Ok(lang_) => {
+                lang = lang_;
+            }
+        }
     }
 
     let (lang, lang_ext) = match lang {

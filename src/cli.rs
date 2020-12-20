@@ -16,6 +16,10 @@ pub(crate) struct Args<'a> {
     pub(crate) whole_word: bool,
     /// tree-sitter node kinds. When specified only search the pattern in these kinds of nodes.
     pub(crate) node_kinds: NodeKinds,
+    /// Path to the tree-sitter parser (dynamic library)
+    pub(crate) parser: Option<String>,
+    /// Name of the language defined in `parser`
+    pub(crate) lang: Option<String>,
     /// Rest of the matches (`--rust`, `--ocaml` etc.)
     pub(crate) matches: ArgMatches<'a>,
 }
@@ -124,16 +128,36 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
             .required(false)
             .short("k")
             .long("kind")
-            .long_help(KIND_HELP_STR))
+            .long_help(KIND_HELP_STR)
+        )
+        .arg(
+            Arg::with_name("parser")
+            .takes_value(true)
+            .required(false)
+            .long("parser")
+            .short("p")
+            .help("Use the tree-sitter parser defined in the dynamic library")
+        )
+        .arg(
+            Arg::with_name("lang")
+            .takes_value(true)
+            .required(false)
+            .long("lang")
+            .short("l")
+            .help("(only with --parser) Name of the language defined in the dynamic library")
+        )
+
         .after_help(EXAMPLES_STR)
         .get_matches();
 
     let pattern = m.value_of("PATTERN").unwrap().to_owned();
-    let path = m.value_of("PATH").map(|s| s.to_owned());
+    let path = m.value_of("PATH").map(str::to_owned);
     let column = m.is_present("column");
     let nogroup = m.is_present("nogroup");
     let nocolor = m.is_present("nocolor");
     let whole_word = m.is_present("word");
+    let parser = m.value_of("parser").map(str::to_owned);
+    let lang = m.value_of("lang").map(str::to_owned);
 
     let smart_case_pos = m.index_of("smart-case").map(|idx| (Casing::Smart, idx));
     let case_sensitive_pos = m
@@ -193,6 +217,8 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         casing,
         whole_word,
         node_kinds,
+        parser,
+        lang,
         matches: m,
     }
 }
