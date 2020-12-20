@@ -206,42 +206,17 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool
                     continue;
                 }
                 Ok(token_str) => {
-                    let token_str: Cow<'_, str> = if cfg.case_sensitive {
-                        Cow::Owned(token_str.to_lowercase())
-                    } else {
-                        Cow::Borrowed(token_str)
-                    };
-
-                    let match_: Option<usize> = if is_id && cfg.whole_word {
-                        if token_str == cfg.pattern {
-                            Some(0)
-                        } else {
-                            None
-                        }
-                    } else if cfg.whole_word {
-                        match token_str.find(&cfg.pattern) {
-                            None => None,
-                            Some(idx) => {
-                                if check_word_bounds(
-                                    token_str.as_ref(),
-                                    idx,
-                                    idx + cfg.pattern.len(),
-                                ) {
-                                    Some(idx)
-                                } else {
-                                    None
-                                }
-                            }
-                        }
-                    } else {
-                        token_str.find(&cfg.pattern)
-                    };
-
-                    if let Some(match_start) = match_ {
+                    for match_ in match_token(
+                        token_str,
+                        &cfg.pattern,
+                        is_id,
+                        cfg.whole_word,
+                        cfg.case_sensitive,
+                    ) {
                         let pos = node.start_position();
 
                         let (token_line, token_col) =
-                            get_token_line_col(token_str.as_ref(), pos.column, match_start);
+                            get_token_line_col(token_str.as_ref(), pos.column, match_);
 
                         let line = pos.row + token_line;
                         let column = token_col;
@@ -373,6 +348,46 @@ fn check_word_bounds(text: &str, match_begin: usize, match_end: usize) -> bool {
     true
 }
 
+fn match_token(
+    token: &str,
+    pattern: &str,
+    is_id: bool,
+    whole_word: bool,
+    case_sensitive: bool,
+) -> Vec<usize> {
+    #[cfg(debug_assertions)]
+    if !case_sensitive {
+        assert_eq!(pattern, pattern.to_lowercase());
+    }
+
+    let token: Cow<'_, str> = if !case_sensitive {
+        Cow::Owned(token.to_lowercase())
+    } else {
+        Cow::Borrowed(token)
+    };
+
+    // Special case for whole-word identifiers: don't look at word bounds, expect the whole token
+    // to match
+    if is_id && whole_word {
+        return if token == pattern { vec![0] } else { vec![] };
+    }
+
+    // In other cases we'll find the pattern in the token (which may occur multiple times) and
+    // check word boundaries when necessary
+    token
+        .match_indices(pattern)
+        .flat_map(|(match_begin, _)| {
+            if whole_word
+                && !check_word_bounds(token.as_ref(), match_begin, match_begin + pattern.len())
+            {
+                None.into_iter()
+            } else {
+                Some(match_begin).into_iter()
+            }
+        })
+        .collect()
+}
+
 #[test]
 fn test_word_bounds() {
     assert!(check_word_bounds("test", 0, 4));
@@ -386,4 +401,30 @@ fn test_word_bounds() {
     assert!(check_word_bounds("a b c", 2, 3));
     assert!(!check_word_bounds("a b c", 2, 4));
     assert!(check_word_bounds("a b c", 2, 5));
+}
+
+#[test]
+fn test_match_token() {
+    assert_eq!(match_token("test", "test", false, false, false), vec![0]);
+    assert_eq!(match_token("test", "test", true, false, false), vec![0]);
+    assert_eq!(match_token("test", "Test", true, true, true), vec![]);
+    assert_eq!(match_token("Test", "Test", true, true, true), vec![0]);
+
+    // Whole word
+    assert_eq!(
+        match_token("just testing", "test", false, false, false),
+        vec![5]
+    );
+    assert_eq!(
+        match_token("just testing", "test", false, true, false),
+        vec![]
+    );
+
+    // Multiple occurrences in single token
+    assert_eq!(
+        match_token("tey te tey", "te", false, false, false),
+        vec![0, 4, 7]
+    );
+    assert_eq!(match_token("tey te tey", "te", false, true, false), vec![4]);
+    assert_eq!(match_token("tey Te tey", "Te", false, false, true), vec![4]);
 }
