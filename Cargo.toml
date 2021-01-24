@@ -10,7 +10,7 @@ repository = "https://github.com/osa1/sg"
 [dependencies]
 ansi_term = "0.12"
 clap = "2.33"
-tree-sitter = "0.16"
+tree-sitter = "0.17"
 
 [build-dependencies]
 cc = "1.0"
