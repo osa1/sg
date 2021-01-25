@@ -45,11 +45,13 @@ fn main() {
             .include(lang.path)
             .file(scanner_path)
             .cpp(lang.scanner_cplusplus)
+            .warnings(false)
             .compile(&format!("{}_scanner", lang.lang_name));
 
         cc::Build::new()
             .include(lang.path)
             .file(parser_path)
+            .warnings(false)
             .compile(&format!("{}_parser", lang.lang_name));
     }
 
