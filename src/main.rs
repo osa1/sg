@@ -108,7 +108,7 @@ fn mk_search_mode(
                     SearchMode::Query { query, pat }
                 }
             },
-            cli::Query::Name(q) => {
+            cli::Query::Name(_q) => {
                 todo!()
             }
         },
@@ -117,7 +117,7 @@ fn mk_search_mode(
 
 fn main() {
     let cli::Args {
-        mut pattern,
+        pattern,
         path,
         column,
         nogroup,
@@ -324,26 +324,79 @@ fn run_query(
     node: Node,
     first: &mut bool,
 ) {
+    // Did we print the file name? Only used with `cfg.group`
+    let mut header_printed = false;
+
+    // TODO: Generate this lazily
+    let lines: Vec<&str> = contents.lines().collect();
+
     let mut query_cursor = QueryCursor::new();
     // TODO: Would it be more efficient to use matches here when pat is not available?
     for (match_, _) in query_cursor.captures(query, node, ts_text_callback(contents)) {
         for capture in match_.captures {
-            if let Some(Pat {
-                word,
-                case_sensitive,
-            }) = pat
-            {
-                let match_str = match capture.node.utf8_text(contents.as_bytes()) {
-                    Err(err) => {
-                        eprintln!(
-                            "Unable to decode token {:?} in {}",
-                            err,
-                            path.to_string_lossy()
+            match pat {
+                Some(Pat {
+                    word,
+                    case_sensitive,
+                }) => {
+                    let token_str = match capture.node.utf8_text(contents.as_bytes()) {
+                        Err(err) => {
+                            eprintln!(
+                                "Unable to decode token in {}: {:?}",
+                                path.to_string_lossy(),
+                                err,
+                            );
+                            continue;
+                        }
+                        Ok(token_str) => token_str,
+                    };
+
+                    // is_id is false below to match in the whole capture (we may want to revisit
+                    // this later)
+                    for match_ in
+                        match_token(token_str, word, false, cfg.whole_word, *case_sensitive)
+                    {
+                        report_match(
+                            cfg,
+                            word,
+                            path,
+                            &node,
+                            token_str,
+                            &lines,
+                            match_,
+                            &mut header_printed,
+                            first,
                         );
-                        continue;
                     }
-                    Ok(token_str) => token_str,
-                };
+                }
+                None => {
+                    // Consider each capture a match. If there are no captures then use the whole
+                    // node as a match.
+                    //
+                    // Matches can be multiple lines so we don't use the report_match function we
+                    // use in single-token matches
+                    let node = capture.node;
+                    let node_str = match node.utf8_text(contents.as_bytes()) {
+                        Err(err) => {
+                            eprintln!(
+                                "Unable to decode node in {}: {:?}",
+                                path.to_string_lossy(),
+                                err,
+                            );
+                            continue;
+                        }
+                        Ok(node_str) => node_str,
+                    };
+                    report_node_match(
+                        cfg,
+                        path,
+                        node,
+                        node_str,
+                        &lines,
+                        &mut header_printed,
+                        first,
+                    );
+                }
             }
         }
     }
@@ -446,59 +499,16 @@ fn report_match(
     let line = pos.row + token_line;
     let column = token_col;
 
-    // Print header (if grouping)
-    if !*header_printed && cfg.group {
-        if *first {
-            *first = false;
-        } else {
-            println!();
-        }
-
-        if cfg.color {
-            println!(
-                "{}{}{}",
-                cfg.file_path_style.prefix(),
-                path.to_string_lossy(),
-                cfg.file_path_style.suffix()
-            );
-        } else {
-            println!("{}", path.to_string_lossy());
-        }
-        *header_printed = true;
-    }
-
-    // Print file path for the match (if not grouping)
-    if !cfg.group {
-        if cfg.color {
-            print!(
-                "{}{}{}:",
-                cfg.file_path_style.prefix(),
-                path.to_string_lossy(),
-                cfg.file_path_style.suffix()
-            );
-        } else {
-            print!("{}:", path.to_string_lossy());
-        }
-    }
-
-    // Print line number
-    if cfg.color {
-        print!(
-            "{}{}{}:",
-            cfg.line_num_style.prefix(),
-            line + 1,
-            cfg.line_num_style.suffix()
-        );
-    } else {
-        print!("{}:", line + 1);
-    }
+    print_header(cfg, path, header_printed, first);
+    print_file_path(cfg, path);
+    print_line_number(cfg, line + 1);
 
     // Print column number (if enabled)
     if cfg.column {
         print!("{}:", column + 1);
     }
 
-    // Print line
+    // Print line, highlighting the match
     let line = match lines.get(line) {
         Some(ok) => ok,
         None => {
@@ -526,6 +536,79 @@ fn report_match(
         print!("{}", match_);
     }
     println!("{}", after_match);
+}
+
+fn report_node_match(
+    cfg: &Cfg,
+    path: &Path,
+    node: Node,
+    node_str: &str,
+    lines: &[&str],
+    header_printed: &mut bool,
+    first: &mut bool,
+) {
+    let pos = node.start_position();
+
+    let (token_line, token_col) = get_token_line_col(node_str.as_ref(), pos.column, 0);
+
+    let line = pos.row + token_line;
+    let column = token_col;
+
+    print_header(cfg, path, header_printed, first);
+    print_file_path(cfg, path);
+    print_line_number(cfg, line + 1);
+}
+
+// Print header (if grouping, and header not already printed)
+fn print_header(cfg: &Cfg, path: &Path, header_printed: &mut bool, first: &mut bool) {
+    if !*header_printed && cfg.group {
+        if *first {
+            *first = false;
+        } else {
+            println!();
+        }
+
+        if cfg.color {
+            println!(
+                "{}{}{}",
+                cfg.file_path_style.prefix(),
+                path.to_string_lossy(),
+                cfg.file_path_style.suffix()
+            );
+        } else {
+            println!("{}", path.to_string_lossy());
+        }
+        *header_printed = true;
+    }
+}
+
+// Print file path for the match (if not grouping)
+fn print_file_path(cfg: &Cfg, path: &Path) {
+    if !cfg.group {
+        if cfg.color {
+            print!(
+                "{}{}{}:",
+                cfg.file_path_style.prefix(),
+                path.to_string_lossy(),
+                cfg.file_path_style.suffix()
+            );
+        } else {
+            print!("{}:", path.to_string_lossy());
+        }
+    }
+}
+
+fn print_line_number(cfg: &Cfg, line: usize) {
+    if cfg.color {
+        print!(
+            "{}{}{}:",
+            cfg.line_num_style.prefix(),
+            line + 1,
+            cfg.line_num_style.suffix()
+        );
+    } else {
+        print!("{}:", line + 1);
+    }
 }
 
 #[test]
