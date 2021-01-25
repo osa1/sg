@@ -2,7 +2,7 @@ use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg
 
 #[derive(Debug)]
 pub(crate) struct Args<'a> {
-    pub(crate) pattern: String,
+    pub(crate) pattern: Option<String>,
     pub(crate) path: Option<String>,
     /// Show column number
     pub(crate) column: bool,
@@ -16,6 +16,8 @@ pub(crate) struct Args<'a> {
     pub(crate) whole_word: bool,
     /// tree-sitter node kinds. When specified only search the pattern in these kinds of nodes.
     pub(crate) node_kinds: NodeKinds,
+    /// A query literal or name
+    pub(crate) query: Option<Query>,
     /// Rest of the matches (`--rust`, `--ocaml` etc.)
     pub(crate) matches: ArgMatches<'a>,
 }
@@ -40,6 +42,14 @@ pub(crate) struct NodeKinds {
     pub(crate) comment: bool,
 }
 
+#[derive(Debug)]
+pub(crate) enum Query {
+    /// An actual tree-sitter query
+    Literal(String),
+    /// A query name
+    Name(String),
+}
+
 pub(crate) fn parse_args<'a>() -> Args<'a> {
     let mut version = crate_version!().to_owned();
     let commit_hash = env!("GIT_HASH");
@@ -61,7 +71,7 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
                 .long("ocaml")
                 .help("Search OCaml files"),
         )
-        .arg(Arg::with_name("PATTERN").takes_value(true).required(true))
+        .arg(Arg::with_name("PATTERN").takes_value(true).required(false))
         .arg(Arg::with_name("PATH").takes_value(true).required(false))
         .arg(
             Arg::with_name("color")
@@ -124,16 +134,34 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
             .required(false)
             .short("k")
             .long("kind")
-            .long_help(KIND_HELP_STR))
-        .after_help(EXAMPLES_STR)
+            .long_help(KIND_HELP)
+        )
+        .arg(
+            Arg::with_name("query-name")
+            .takes_value(true)
+            .required(false)
+            .long("qn")
+            .long_help(QUERY_NAME_HELP)
+            .overrides_with("query-str")
+        )
+        .arg(
+            Arg::with_name("query-str")
+            .takes_value(true)
+            .required(false)
+            .long("qs")
+            .long_help(QUERY_STR_HELP)
+        )
+        .after_help(HELP_MORE)
         .get_matches();
 
-    let pattern = m.value_of("PATTERN").unwrap().to_owned();
-    let path = m.value_of("PATH").map(|s| s.to_owned());
+    let pattern = m.value_of("PATTERN").map(str::to_owned);
+    let path = m.value_of("PATH").map(str::to_owned);
     let column = m.is_present("column");
     let nogroup = m.is_present("nogroup");
     let nocolor = m.is_present("nocolor");
     let whole_word = m.is_present("word");
+    let qs = m.value_of("query-str").map(str::to_owned);
+    let qn = m.value_of("query-name").map(str::to_owned);
 
     let smart_case_pos = m.index_of("smart-case").map(|idx| (Casing::Smart, idx));
     let case_sensitive_pos = m
@@ -184,6 +212,13 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         },
     };
 
+    let query = match (qs, qn) {
+        (None, None) => None,
+        (Some(qs), None) => Some(Query::Literal(qs)),
+        (None, Some(qn)) => Some(Query::Name(qn)),
+        (Some(_), Some(_)) => panic!("Both query name and string were specified"),
+    };
+
     Args {
         pattern,
         path,
@@ -193,12 +228,21 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         casing,
         whole_word,
         node_kinds,
+        query,
         matches: m,
     }
 }
 
 #[rustfmt::skip]
-static EXAMPLES_STR: &str = "\
+static HELP_MORE: &str = "\
+QUERIES:
+    Queries are used to search for multiple tokens in the AST, or for more complicated \
+    syntax-aware matching, using tree-sitter query syntax [1]. sg comes with a set of \
+    built-in queries on Rust. TODO say more
+
+    [1]: https://tree-sitter.github.io/tree-sitter/using-parsers#query-syntax
+
+
 EXAMPLES:
     Search for 'fun' in Rust (.rs) files
         sg --rust fun
@@ -207,10 +251,20 @@ EXAMPLES:
         sg --rust fun --kind comment,string
 
     Search for 'fun' case sensitively in OCaml files in given directory or file
-        sg --ocaml fun path -s";
+        sg --ocaml fun path -s
+
+    TODO: query exaples";
 
 #[rustfmt::skip]
-static KIND_HELP_STR: &str = "\
-Comma-separated list of AST node kinds. When specified only search pattern in these kind of tree-sitter nodes. Possible values: 'identifier' (for identifiers and keywords), 'comment' (for comments), 'string' (for string literals). Default is 'identifier'.
+static KIND_HELP: &str = 
+    "Comma-separated list of AST node kinds. When specified only search pattern in these kind of \
+     tree-sitter nodes. Possible values: 'identifier' (for identifiers and keywords), 'comment' \
+     (for comments), 'string' (for string literals). Default is 'identifier'.
 
 Example: --kind identifier,comment,string";
+
+static QUERY_NAME_HELP: &str =
+    "Name of the tree-sitter query to run on the AST. See \"queries\" below for details.";
+
+static QUERY_STR_HELP: &str =
+    "tree-sitter query to run on the AST. See \"queries\" below for details.";

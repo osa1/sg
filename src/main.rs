@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::fs;
 use std::path::Path;
 
-use tree_sitter::{Language, Node, Parser};
+use tree_sitter::{Language, Node, Parser, Query, QueryCursor};
 
 mod cli;
 
@@ -19,12 +19,8 @@ struct Cfg {
     column: bool,
     // Group matches by file
     group: bool,
-    // Pattern to search
-    pattern: String,
     // tree-sitter node kind, when available search pattern in this kind of nodes
     node_kinds: cli::NodeKinds,
-    // Match case sensitively?
-    case_sensitive: bool,
     // Only match whole words?
     whole_word: bool,
     // tree-sitter parser
@@ -39,6 +35,86 @@ struct Cfg {
     match_style: ansi_term::Style,
 }
 
+#[derive(Debug)]
+enum SearchMode {
+    /// Word search
+    Pattern(Pat),
+    /// A tree-sitter query. Optionally match the captured words.
+    Query {
+        /// The tree-sitter query
+        query: Query,
+        /// The pattern to search in the capture. Ignored if the query doesn't have any captures.
+        pat: Option<Pat>,
+    },
+}
+
+#[derive(Debug)]
+struct Pat {
+    /// The word to search
+    word: String,
+    /// Whether to match case sensitively. When this is `false`, `pat` is lowercase.
+    case_sensitive: bool,
+}
+
+fn mk_search_mode(
+    lang: Language,
+    pat: Option<String>,
+    query: Option<cli::Query>,
+    casing: cli::Casing,
+) -> SearchMode {
+    // Returns case sensitivity of the pattern, and adjusts it to lowercase if the it's case
+    // insensitive.
+    let get_pat_sensitivity = move |pat: &mut String| -> bool {
+        match casing {
+            cli::Casing::Smart => pat.chars().any(char::is_uppercase),
+            cli::Casing::Sensitive => true,
+            cli::Casing::Insensitive => {
+                *pat = pat.to_lowercase();
+                false
+            }
+        }
+    };
+
+    match query {
+        None => match pat {
+            None => {
+                eprintln!("At least a pattern or a query (`--qn` or `--qs`) should be specified.");
+                ::std::process::exit(1);
+            }
+            Some(mut pat) => {
+                let case_sensitive = get_pat_sensitivity(&mut pat);
+                SearchMode::Pattern(Pat {
+                    word: pat,
+                    case_sensitive,
+                })
+            }
+        },
+        Some(query) => match query {
+            cli::Query::Literal(query_str) => match Query::new(lang, &query_str) {
+                Err(err) => panic!("Unable to parse tree-sitter query: {:?}", err),
+                Ok(query) => {
+                    let pat = match pat {
+                        None => None,
+                        Some(mut pat) => {
+                            // TODO: Check that there's one capture in the query
+                            // Maybe just generate a warning instead of failing
+                            let case_sensitive = get_pat_sensitivity(&mut pat);
+                            Some(Pat {
+                                word: pat,
+                                case_sensitive,
+                            })
+                        }
+                    };
+                    SearchMode::Query { query, pat }
+                }
+            },
+            cli::Query::Name(q) => {
+                todo!()
+            }
+        },
+    }
+}
+
 fn main() {
     let cli::Args {
         mut pattern,
@@ -49,6 +125,7 @@ fn main() {
         casing,
         whole_word,
         node_kinds,
+        query,
         matches,
     } = cli::parse_args();
 
@@ -70,6 +147,8 @@ fn main() {
         Some(lang) => lang,
     };
 
+    let search_mode = mk_search_mode(lang, pattern, query, casing);
+
     let mut parser = Parser::new();
     parser.set_language(lang).unwrap();
 
@@ -77,22 +156,11 @@ fn main() {
         .map(|s| s.into())
         .unwrap_or_else(|| std::env::current_dir().unwrap());
 
-    let case_sensitive = match casing {
-        cli::Casing::Smart => pattern.chars().any(char::is_uppercase),
-        cli::Casing::Sensitive => true,
-        cli::Casing::Insensitive => {
-            pattern = pattern.to_lowercase();
-            false
-        }
-    };
-
     let cfg = Cfg {
         color: !nocolor,
         column,
         group: !nogroup,
-        pattern,
         node_kinds,
-        case_sensitive,
         whole_word,
         parser: RefCell::new(parser),
         ext: lang_ext,
@@ -104,13 +172,13 @@ fn main() {
     let mut first = true;
 
     if path.is_dir() {
-        walk_path(&path, &cfg, &mut first);
+        walk_path(&search_mode, &path, &cfg, &mut first);
     } else {
-        search_file(&path, &cfg, &mut first);
+        search_file(&search_mode, &path, &cfg, &mut first);
     }
 }
 
-fn walk_path(path: &Path, cfg: &Cfg, first: &mut bool) {
+fn walk_path(search_mode: &SearchMode, path: &Path, cfg: &Cfg, first: &mut bool) {
     let dir_contents = match fs::read_dir(path) {
         Ok(ok) => ok,
         Err(err) => {
@@ -143,16 +211,16 @@ fn walk_path(path: &Path, cfg: &Cfg, first: &mut bool) {
         };
 
         if meta.is_dir() {
-            walk_path(&path, cfg, first);
+            walk_path(search_mode, &path, cfg, first);
         } else if let Some(ext) = path.extension() {
             if ext == cfg.ext {
-                search_file(&path, cfg, first);
+                search_file(search_mode, &path, cfg, first);
             }
         }
     }
 }
 
-fn search_file(path: &Path, cfg: &Cfg, first: &mut bool) {
+fn search_file(search_mode: &SearchMode, path: &Path, cfg: &Cfg, first: &mut bool) {
     let contents = match fs::read_to_string(path) {
         Ok(ok) => ok,
         Err(err) => {
@@ -170,10 +238,27 @@ fn search_file(path: &Path, cfg: &Cfg, first: &mut bool) {
     };
 
     let root = tree.root_node();
-    walk_ast(path, cfg, &contents, root, first);
+
+    match search_mode {
+        SearchMode::Pattern(Pat {
+            word,
+            case_sensitive,
+        }) => walk_ast(path, word, *case_sensitive, cfg, &contents, root, first),
+        SearchMode::Query { query, pat } => {
+            run_query(path, query, pat.as_ref(), cfg, &contents, root, first)
+        }
+    }
 }
 
-fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool) {
+fn walk_ast(
+    path: &Path,
+    pattern: &str,
+    case_sensitive: bool,
+    cfg: &Cfg,
+    contents: &str,
+    node: Node,
+    first: &mut bool,
+) {
     let bytes = contents.as_bytes();
 
     // TODO: Generate this lazily
@@ -206,13 +291,9 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool
                     continue;
                 }
                 Ok(token_str) => {
-                    for match_ in match_token(
-                        token_str,
-                        &cfg.pattern,
-                        is_id,
-                        cfg.whole_word,
-                        cfg.case_sensitive,
-                    ) {
+                    for match_ in
+                        match_token(token_str, pattern, is_id, cfg.whole_word, case_sensitive)
+                    {
                         let pos = node.start_position();
 
                         let (token_line, token_col) =
@@ -287,8 +368,8 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool
                         };
 
                         let before_match = &line[0..column];
-                        let match_ = &line[column..column + cfg.pattern.len()];
-                        let after_match = &line[column + cfg.pattern.len()..];
+                        let match_ = &line[column..column + pattern.len()];
+                        let after_match = &line[column + pattern.len()..];
                         print!("{}", before_match);
                         if cfg.color {
                             print!(
@@ -311,6 +392,44 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool
             work.push(child);
         }
     }
+}
+
+fn run_query(
+    path: &Path,
+    query: &Query,
+    pat: Option<&Pat>,
+    cfg: &Cfg,
+    contents: &str,
+    node: Node,
+    first: &mut bool,
+) {
+    let mut query_cursor = QueryCursor::new();
+    // TODO: Would it be more efficient to use matches here when pat is not available?
+    for (match_, _) in query_cursor.captures(query, node, ts_text_callback(contents)) {
+        for capture in match_.captures {
+            if let Some(Pat {
+                word,
+                case_sensitive,
+            }) = pat
+            {
+                let match_str = match capture.node.utf8_text(contents.as_bytes()) {
+                    Err(err) => {
+                        eprintln!(
+                            "Unable to decode token {:?} in {}",
+                            err,
+                            path.to_string_lossy()
+                        );
+                        continue;
+                    }
+                    Ok(token_str) => token_str,
+                };
+            }
+        }
+    }
+}
+
+fn ts_text_callback<'a>(source: &'a str) -> impl Fn(Node) -> &'a [u8] {
+    move |n| &source.as_bytes()[n.byte_range()]
 }
 
 fn get_token_line_col(token: &str, column0: usize, idx: usize) -> (usize, usize) {
