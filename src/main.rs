@@ -196,7 +196,7 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool
         search |= is_id;
 
         if search {
-            match node.utf8_text(bytes) {
+            let token_str = match node.utf8_text(bytes) {
                 Err(err) => {
                     eprintln!(
                         "Unable to decode token {:?} in {}",
@@ -205,104 +205,104 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool
                     );
                     continue;
                 }
-                Ok(token_str) => {
-                    for match_ in match_token(
-                        token_str,
-                        &cfg.pattern,
-                        is_id,
-                        cfg.whole_word,
-                        cfg.case_sensitive,
-                    ) {
-                        let pos = node.start_position();
+                Ok(token_str) => token_str,
+            };
 
-                        let (token_line, token_col) =
-                            get_token_line_col(token_str.as_ref(), pos.column, match_);
+            for match_ in match_token(
+                token_str,
+                &cfg.pattern,
+                is_id,
+                cfg.whole_word,
+                cfg.case_sensitive,
+            ) {
+                let pos = node.start_position();
 
-                        let line = pos.row + token_line;
-                        let column = token_col;
+                let (token_line, token_col) =
+                    get_token_line_col(token_str.as_ref(), pos.column, match_);
 
-                        // Print header (if grouping)
-                        if !header_printed && cfg.group {
-                            if *first {
-                                *first = false;
-                            } else {
-                                println!();
-                            }
+                let line = pos.row + token_line;
+                let column = token_col;
 
-                            if cfg.color {
-                                println!(
-                                    "{}{}{}",
-                                    cfg.file_path_style.prefix(),
-                                    path.to_string_lossy(),
-                                    cfg.file_path_style.suffix()
-                                );
-                            } else {
-                                println!("{}", path.to_string_lossy());
-                            }
-                            header_printed = true;
-                        }
+                // Print header (if grouping)
+                if !header_printed && cfg.group {
+                    if *first {
+                        *first = false;
+                    } else {
+                        println!();
+                    }
 
-                        // Print file path for the match (if not grouping)
-                        if !cfg.group {
-                            if cfg.color {
-                                print!(
-                                    "{}{}{}:",
-                                    cfg.file_path_style.prefix(),
-                                    path.to_string_lossy(),
-                                    cfg.file_path_style.suffix()
-                                );
-                            } else {
-                                print!("{}:", path.to_string_lossy());
-                            }
-                        }
+                    if cfg.color {
+                        println!(
+                            "{}{}{}",
+                            cfg.file_path_style.prefix(),
+                            path.to_string_lossy(),
+                            cfg.file_path_style.suffix()
+                        );
+                    } else {
+                        println!("{}", path.to_string_lossy());
+                    }
+                    header_printed = true;
+                }
 
-                        // Print line number
-                        if cfg.color {
-                            print!(
-                                "{}{}{}:",
-                                cfg.line_num_style.prefix(),
-                                line + 1,
-                                cfg.line_num_style.suffix()
-                            );
-                        } else {
-                            print!("{}:", line + 1);
-                        }
-
-                        // Print column number (if enabled)
-                        if cfg.column {
-                            print!("{}:", column + 1);
-                        }
-
-                        // Print line
-                        let line = match lines.get(line) {
-                            Some(ok) => ok,
-                            None => {
-                                eprintln!(
-                                    "Unable to get line {} in {}",
-                                    pos.row,
-                                    path.to_string_lossy()
-                                );
-                                continue;
-                            }
-                        };
-
-                        let before_match = &line[0..column];
-                        let match_ = &line[column..column + cfg.pattern.len()];
-                        let after_match = &line[column + cfg.pattern.len()..];
-                        print!("{}", before_match);
-                        if cfg.color {
-                            print!(
-                                "{}{}{}",
-                                cfg.match_style.prefix(),
-                                match_,
-                                cfg.match_style.suffix()
-                            );
-                        } else {
-                            print!("{}", match_);
-                        }
-                        println!("{}", after_match);
+                // Print file path for the match (if not grouping)
+                if !cfg.group {
+                    if cfg.color {
+                        print!(
+                            "{}{}{}:",
+                            cfg.file_path_style.prefix(),
+                            path.to_string_lossy(),
+                            cfg.file_path_style.suffix()
+                        );
+                    } else {
+                        print!("{}:", path.to_string_lossy());
                     }
                 }
+
+                // Print line number
+                if cfg.color {
+                    print!(
+                        "{}{}{}:",
+                        cfg.line_num_style.prefix(),
+                        line + 1,
+                        cfg.line_num_style.suffix()
+                    );
+                } else {
+                    print!("{}:", line + 1);
+                }
+
+                // Print column number (if enabled)
+                if cfg.column {
+                    print!("{}:", column + 1);
+                }
+
+                // Print line
+                let line = match lines.get(line) {
+                    Some(ok) => ok,
+                    None => {
+                        eprintln!(
+                            "Unable to get line {} in {}",
+                            pos.row,
+                            path.to_string_lossy()
+                        );
+                        continue;
+                    }
+                };
+
+                let before_match = &line[0..column];
+                let match_ = &line[column..column + cfg.pattern.len()];
+                let after_match = &line[column + cfg.pattern.len()..];
+                print!("{}", before_match);
+                if cfg.color {
+                    print!(
+                        "{}{}{}",
+                        cfg.match_style.prefix(),
+                        match_,
+                        cfg.match_style.suffix()
+                    );
+                } else {
+                    print!("{}", match_);
+                }
+                println!("{}", after_match);
             }
         }
 
