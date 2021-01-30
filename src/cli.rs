@@ -316,7 +316,7 @@ static KIND_HELP: &str =
 Example: --kind identifier,comment,string";
 
 static QUERY_NAME_HELP: &str =
-    "Name of the tree-sitter query to run on the AST. See \"queries\" below for details.";
+    "Interpret <PATTERN> as name of the tree-sitter query to run on the AST. See \"queries\" below for details.";
 
 static QUERY_STR_HELP: &str =
-    "tree-sitter query to run on the AST. See \"queries\" below for details.";
+    "Interpret <PATTERN> as a tree-sitter query to run on the AST. See \"queries\" below for details.";
