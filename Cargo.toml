@@ -10,6 +10,7 @@ repository = "https://github.com/osa1/sg"
 [dependencies]
 ansi_term = "0.12"
 clap = "2.33"
+fxhash = "0.2"
 once_cell = "1.5"
 tree-sitter = "0.17"
 
