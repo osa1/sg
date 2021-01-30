@@ -113,6 +113,7 @@ fn main() {
         whole_word,
         node_kinds,
         query,
+        captures,
         matches,
     } = cli::parse_args();
 

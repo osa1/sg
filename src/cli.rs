@@ -1,4 +1,5 @@
 use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg, ArgMatches};
+use fxhash::FxHashMap;
 
 #[derive(Debug)]
 pub(crate) struct Args<'a> {
@@ -18,6 +19,9 @@ pub(crate) struct Args<'a> {
     pub(crate) node_kinds: NodeKinds,
     /// A query literal or name
     pub(crate) query: Option<Query>,
+    /// When using `query`, specifies values of captures. Keys are capture names, values are
+    /// expected values.
+    pub(crate) captures: FxHashMap<String, String>,
     /// Rest of the matches (`--rust`, `--ocaml` etc.)
     pub(crate) matches: ArgMatches<'a>,
 }
@@ -151,6 +155,14 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
             .long("qs")
             .long_help(QUERY_STR_HELP)
         )
+        .arg(
+            Arg::with_name("capture")
+            .short("c")
+            .takes_value(true)
+            .required(false)
+            .multiple(true)
+            .number_of_values(1)
+        )
         .after_help(HELP_MORE)
         .get_matches();
 
@@ -216,7 +228,35 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         (None, None) => None,
         (Some(qs), None) => Some(Query::Literal(qs)),
         (None, Some(qn)) => Some(Query::Name(qn)),
-        (Some(_), Some(_)) => panic!("Both query name and string were specified"),
+        (Some(_), Some(_)) => {
+            // Should be caught by clap
+            panic!("Both query name and string were specified")
+        }
+    };
+
+    let captures: FxHashMap<String, String> = match m.values_of("capture") {
+        Some(captures) if query.is_some() => {
+            let mut map: FxHashMap<String, String> = Default::default();
+            for capture in captures {
+                // TODO: Use split_once after it's stabilized
+                match capture.find('=') {
+                    Some(split_idx) => {
+                        let k = capture[..split_idx].to_owned();
+                        let v = capture[split_idx + 1..].to_owned();
+                        map.insert(k, v);
+                    }
+                    None => {
+                        eprintln!(
+                            "`{}` is not a valid capture, should be in fork `<name>=<value>`",
+                            capture
+                        );
+                        ::std::process::exit(1);
+                    }
+                }
+            }
+            map
+        }
+        _ => Default::default(),
     };
 
     Args {
@@ -229,6 +269,7 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         whole_word,
         node_kinds,
         query,
+        captures,
         matches: m,
     }
 }
