@@ -107,7 +107,7 @@ fn mk_search_mode(
 
                         let mut capture_vec: Vec<Option<String>> = vec![None; capture_names.len()];
 
-                        for specified_capture_name in captures.keys() {
+                        for (specified_capture_name, expected_value) in captures.iter() {
                             match capture_names
                                 .iter()
                                 .enumerate()
@@ -119,8 +119,8 @@ fn mk_search_mode(
                                         specified_capture_name
                                     );
                                 }
-                                Some((idx, capture_value)) => {
-                                    capture_vec[idx] = Some(capture_value.clone());
+                                Some((idx, _)) => {
+                                    capture_vec[idx] = Some(expected_value.clone());
                                 }
                             }
                         }
