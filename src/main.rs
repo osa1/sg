@@ -57,7 +57,7 @@ struct Pat {
 
 fn mk_search_mode(
     lang: Language,
-    pat: Option<String>,
+    mut pat: String,
     query: Option<cli::Query>,
     captures: FxHashMap<String, String>,
     casing: cli::Casing,
@@ -76,26 +76,17 @@ fn mk_search_mode(
     };
 
     match query {
-        None => match pat {
-            None => {
-                eprintln!(
-                    "At least a pattern (positional argument) or a query (`--qn` or `--qs`)
-                    should be specified."
-                );
-                exit(1);
-            }
-            Some(mut pat) => {
-                let case_sensitive = get_pat_sensitivity(&mut pat);
-                SearchMode::Pattern(Pat {
-                    word: pat,
-                    case_sensitive,
-                })
-            }
-        },
+        None => {
+            let case_sensitive = get_pat_sensitivity(&mut pat);
+            SearchMode::Pattern(Pat {
+                word: pat,
+                case_sensitive,
+            })
+        }
         Some(query) => match query {
-            cli::Query::Literal(query_str) => {
+            cli::Query::Literal => {
                 // Add a dummy capture to capture the full node
-                match Query::new(lang, &query_str) {
+                match Query::new(lang, &pat) {
                     Err(err) => panic!("Unable to parse tree-sitter query: {:?}", err),
                     Ok(query) => {
                         let capture_names = query.capture_names();
@@ -129,7 +120,7 @@ fn mk_search_mode(
                     }
                 }
             }
-            cli::Query::Name(_q) => {
+            cli::Query::Name => {
                 todo!("Query files not implemented yet")
             }
         },

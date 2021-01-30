@@ -3,7 +3,9 @@ use fxhash::FxHashMap;
 
 #[derive(Debug)]
 pub(crate) struct Args<'a> {
-    pub(crate) pattern: Option<String>,
+    /// The search pattern. Interpreted as the word to search, tree-sitter query, or tree-sitter
+    /// query file name depending on the values of `query` field below.
+    pub(crate) pattern: String,
     pub(crate) path: Option<String>,
     /// Show column number
     pub(crate) column: bool,
@@ -48,10 +50,10 @@ pub(crate) struct NodeKinds {
 
 #[derive(Debug)]
 pub(crate) enum Query {
-    /// An actual tree-sitter query
-    Literal(String),
-    /// A query name
-    Name(String),
+    /// Interpret PATTERN as tree-sitter query literal
+    Literal,
+    /// Interpret PATTERN as tree-sitter query name
+    Name,
 }
 
 pub(crate) fn parse_args<'a>() -> Args<'a> {
@@ -75,7 +77,12 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
                 .long("ocaml")
                 .help("Search OCaml files"),
         )
-        .arg(Arg::with_name("PATTERN").takes_value(true).required(false))
+        .arg(
+            Arg::with_name("PATTERN")
+                .takes_value(true)
+                .required(true)
+                .help("A pattern, tree-sitter query (when using --qs), or tree-sitter query file name (when using --qn)")
+        )
         .arg(Arg::with_name("PATH").takes_value(true).required(false))
         .arg(
             Arg::with_name("color")
@@ -142,7 +149,6 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         )
         .arg(
             Arg::with_name("query-name")
-            .takes_value(true)
             .required(false)
             .long("qn")
             .long_help(QUERY_NAME_HELP)
@@ -150,7 +156,6 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         )
         .arg(
             Arg::with_name("query-str")
-            .takes_value(true)
             .required(false)
             .long("qs")
             .long_help(QUERY_STR_HELP)
@@ -166,14 +171,14 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         .after_help(HELP_MORE)
         .get_matches();
 
-    let pattern = m.value_of("PATTERN").map(str::to_owned);
+    let pattern = m.value_of("PATTERN").unwrap().to_owned();
     let path = m.value_of("PATH").map(str::to_owned);
     let column = m.is_present("column");
     let nogroup = m.is_present("nogroup");
     let nocolor = m.is_present("nocolor");
     let whole_word = m.is_present("word");
-    let qs = m.value_of("query-str").map(str::to_owned);
-    let qn = m.value_of("query-name").map(str::to_owned);
+    let qs = m.is_present("query-str");
+    let qn = m.is_present("query-name");
 
     let smart_case_pos = m.index_of("smart-case").map(|idx| (Casing::Smart, idx));
     let case_sensitive_pos = m
@@ -225,12 +230,12 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
     };
 
     let query = match (qs, qn) {
-        (None, None) => None,
-        (Some(qs), None) => Some(Query::Literal(qs)),
-        (None, Some(qn)) => Some(Query::Name(qn)),
-        (Some(_), Some(_)) => {
+        (false, false) => None,
+        (true, false) => Some(Query::Literal),
+        (false, true) => Some(Query::Name),
+        (true, true) => {
             // Should be caught by clap
-            panic!("Both query name and string were specified")
+            panic!("Both --qn name and --qs were specified")
         }
     };
 
