@@ -4,7 +4,9 @@ mod search;
 use std::cell::RefCell;
 use std::fs;
 use std::path::Path;
+use std::process::exit;
 
+use fxhash::FxHashMap;
 use tree_sitter::{Language, Parser, Query};
 
 mod cli;
@@ -41,8 +43,8 @@ struct Cfg {
 enum SearchMode {
     /// Word search
     Pattern(Pat),
-    /// A tree-sitter query
-    Query(Query),
+    /// A tree-sitter query, with expected values of captures
+    Query(Query, Vec<Option<String>>),
 }
 
 #[derive(Debug)]
@@ -57,6 +59,7 @@ fn mk_search_mode(
     lang: Language,
     pat: Option<String>,
     query: Option<cli::Query>,
+    captures: FxHashMap<String, String>,
     casing: cli::Casing,
 ) -> SearchMode {
     // Returns case sensitivity of the pattern, and adjusts it to lowercase if the it's case
@@ -75,8 +78,11 @@ fn mk_search_mode(
     match query {
         None => match pat {
             None => {
-                eprintln!("At least a pattern or a query (`--qn` or `--qs`) should be specified.");
-                ::std::process::exit(1);
+                eprintln!(
+                    "At least a pattern (positional argument) or a query (`--qn` or `--qs`)
+                    should be specified."
+                );
+                exit(1);
             }
             Some(mut pat) => {
                 let case_sensitive = get_pat_sensitivity(&mut pat);
@@ -87,16 +93,44 @@ fn mk_search_mode(
             }
         },
         Some(query) => match query {
-            cli::Query::Literal(mut query_str) => {
+            cli::Query::Literal(query_str) => {
                 // Add a dummy capture to capture the full node
-                query_str.push_str(" @node");
                 match Query::new(lang, &query_str) {
                     Err(err) => panic!("Unable to parse tree-sitter query: {:?}", err),
-                    Ok(query) => SearchMode::Query(query),
+                    Ok(query) => {
+                        let capture_names = query.capture_names();
+
+                        if capture_names.is_empty() {
+                            eprintln!("tree-sitter query doesn't have any capture");
+                            exit(1);
+                        }
+
+                        let mut capture_vec: Vec<Option<String>> = vec![None; capture_names.len()];
+
+                        for specified_capture_name in captures.keys() {
+                            match capture_names
+                                .iter()
+                                .enumerate()
+                                .find(|(_, c)| *c == specified_capture_name)
+                            {
+                                None => {
+                                    eprintln!(
+                                        "WARNING: tree-sitter query does not capture {}",
+                                        specified_capture_name
+                                    );
+                                }
+                                Some((idx, capture_value)) => {
+                                    capture_vec[idx] = Some(capture_value.clone());
+                                }
+                            }
+                        }
+
+                        SearchMode::Query(query, capture_vec)
+                    }
                 }
             }
             cli::Query::Name(_q) => {
-                todo!()
+                todo!("Query files not implemented yet")
             }
         },
     }
@@ -130,12 +164,12 @@ fn main() {
     let (lang, lang_ext) = match lang {
         None => {
             eprintln!("No language specified; aborting.");
-            ::std::process::exit(1);
+            exit(1);
         }
         Some(lang) => lang,
     };
 
-    let search_mode = mk_search_mode(lang, pattern, query, casing);
+    let search_mode = mk_search_mode(lang, pattern, query, captures, casing);
 
     let mut parser = Parser::new();
     parser.set_language(lang).unwrap();
@@ -232,8 +266,8 @@ fn search_file(search_mode: &SearchMode, path: &Path, cfg: &Cfg, first: &mut boo
             word,
             case_sensitive,
         }) => search::word::search_file(path, word, *case_sensitive, cfg, &contents, root, first),
-        SearchMode::Query(query) => {
-            search::query::run_query(path, query, cfg, &contents, root, first)
+        SearchMode::Query(query, captures) => {
+            search::query::run_query(path, query, captures, cfg, &contents, root, first)
         }
     }
 }

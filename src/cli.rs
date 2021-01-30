@@ -274,6 +274,12 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
     }
 }
 
+// TODO: mention these
+//
+// - A query should have at least one capture otherwise it will be useless. Captures do not have to
+//   have a value.
+// - Capture values are OR'ed (ie. matched ones are reported, not all of them need to match)
+
 #[rustfmt::skip]
 static HELP_MORE: &str = "\
 QUERIES:

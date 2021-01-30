@@ -4,7 +4,7 @@ use std::path::Path;
 use once_cell::unsync::Lazy;
 use tree_sitter::Node;
 
-use crate::report::report_match;
+use crate::report::{print_file_path, print_header, print_line_number};
 use crate::Cfg;
 
 pub(crate) fn search_file(
@@ -125,6 +125,82 @@ fn check_word_bounds(text: &str, match_begin: usize, match_end: usize) -> bool {
     }
 
     true
+}
+
+fn report_match(
+    cfg: &Cfg,
+    pattern: &str,
+    path: &Path,
+    node: &Node,
+    token_str: &str,
+    lines: &[&str],
+    match_: usize,
+    header_printed: &mut bool,
+    first: &mut bool,
+) {
+    let pos = node.start_position();
+
+    let (token_line, token_col) = get_token_line_col(token_str.as_ref(), pos.column, match_);
+
+    let line = pos.row + token_line;
+    let column = token_col;
+
+    print_header(cfg, path, header_printed, first);
+    print_file_path(cfg, path);
+    print_line_number(cfg, line + 1);
+
+    // Print column number (if enabled)
+    if cfg.column {
+        print!("{}:", column + 1);
+    }
+
+    // Print line, highlighting the match
+    let line = match lines.get(line) {
+        Some(ok) => ok,
+        None => {
+            eprintln!(
+                "Unable to get line {} in {}",
+                pos.row,
+                path.to_string_lossy()
+            );
+            return;
+        }
+    };
+
+    let before_match = &line[0..column];
+    let match_ = &line[column..column + pattern.len()];
+    let after_match = &line[column + pattern.len()..];
+    print!("{}", before_match);
+    if cfg.color {
+        print!(
+            "{}{}{}",
+            cfg.match_style.prefix(),
+            match_,
+            cfg.match_style.suffix()
+        );
+    } else {
+        print!("{}", match_);
+    }
+    println!("{}", after_match);
+}
+
+fn get_token_line_col(token: &str, column0: usize, idx: usize) -> (usize, usize) {
+    let mut chars = token.chars();
+
+    let mut line = 0;
+    let mut col = column0;
+
+    for _ in 0..idx {
+        let c = chars.next();
+        if c == Some('\n') {
+            line += 1;
+            col = 0;
+        } else {
+            col += 1;
+        }
+    }
+
+    (line, col)
 }
 
 #[test]
