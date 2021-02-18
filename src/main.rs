@@ -1,11 +1,16 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
+use std::ffi::OsString;
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 
 use tree_sitter::{Language, Node, Parser};
 
 mod cli;
+
+#[cfg(test)]
+mod tests;
 
 extern "C" {
     fn tree_sitter_rust() -> Language;
@@ -40,6 +45,18 @@ struct Cfg {
 }
 
 fn main() {
+    let stdout = std::io::stdout();
+    let mut stdout_lock = stdout.lock();
+    let ret = run(&mut stdout_lock, &mut std::env::args_os());
+    std::process::exit(ret);
+}
+
+pub(crate) fn run<W, I, T>(stdout: &mut W, args_iter: I) -> i32
+where
+    W: Write,
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
     let cli::Args {
         mut pattern,
         path,
@@ -50,7 +67,13 @@ fn main() {
         whole_word,
         node_kinds,
         matches,
-    } = cli::parse_args();
+    } = match cli::parse_args_safe(args_iter) {
+        Err(err) => {
+            eprintln!("{}", err.message);
+            return 1;
+        }
+        Ok(args) => args,
+    };
 
     let mut lang: Option<(Language, &'static str)> = None;
 
@@ -65,7 +88,7 @@ fn main() {
     let (lang, lang_ext) = match lang {
         None => {
             eprintln!("No language specified; aborting.");
-            ::std::process::exit(1);
+            return 1;
         }
         Some(lang) => lang,
     };
@@ -104,13 +127,15 @@ fn main() {
     let mut first = true;
 
     if path.is_dir() {
-        walk_path(&path, &cfg, &mut first);
+        walk_path(stdout, &path, &cfg, &mut first);
     } else {
-        search_file(&path, &cfg, &mut first);
+        search_file(stdout, &path, &cfg, &mut first);
     }
+
+    0
 }
 
-fn walk_path(path: &Path, cfg: &Cfg, first: &mut bool) {
+fn walk_path<W: Write>(stdout: &mut W, path: &Path, cfg: &Cfg, first: &mut bool) {
     let dir_contents = match fs::read_dir(path) {
         Ok(ok) => ok,
         Err(err) => {
@@ -143,16 +168,16 @@ fn walk_path(path: &Path, cfg: &Cfg, first: &mut bool) {
         };
 
         if meta.is_dir() {
-            walk_path(&path, cfg, first);
+            walk_path(stdout, &path, cfg, first);
         } else if let Some(ext) = path.extension() {
             if ext == cfg.ext {
-                search_file(&path, cfg, first);
+                search_file(stdout, &path, cfg, first);
             }
         }
     }
 }
 
-fn search_file(path: &Path, cfg: &Cfg, first: &mut bool) {
+fn search_file<W: Write>(stdout: &mut W, path: &Path, cfg: &Cfg, first: &mut bool) {
     let contents = match fs::read_to_string(path) {
         Ok(ok) => ok,
         Err(err) => {
@@ -170,10 +195,17 @@ fn search_file(path: &Path, cfg: &Cfg, first: &mut bool) {
     };
 
     let root = tree.root_node();
-    walk_ast(path, cfg, &contents, root, first);
+    walk_ast(stdout, path, cfg, &contents, root, first);
 }
 
-fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool) {
+fn walk_ast<W: Write>(
+    stdout: &mut W,
+    path: &Path,
+    cfg: &Cfg,
+    contents: &str,
+    node: Node,
+    first: &mut bool,
+) {
     let bytes = contents.as_bytes();
 
     // TODO: Generate this lazily
@@ -216,6 +248,7 @@ fn walk_ast(path: &Path, cfg: &Cfg, contents: &str, node: Node, first: &mut bool
                 cfg.case_sensitive,
             ) {
                 report_match(
+                    stdout,
                     cfg,
                     path,
                     &node,
@@ -310,7 +343,8 @@ fn match_token(
         .collect()
 }
 
-fn report_match(
+fn report_match<W: Write>(
+    stdout: &mut W,
     cfg: &Cfg,
     path: &Path,
     node: &Node,
@@ -332,18 +366,19 @@ fn report_match(
         if *first {
             *first = false;
         } else {
-            println!();
+            let _ = writeln!(stdout);
         }
 
         if cfg.color {
-            println!(
+            let _ = writeln!(
+                stdout,
                 "{}{}{}",
                 cfg.file_path_style.prefix(),
                 path.to_string_lossy(),
                 cfg.file_path_style.suffix()
             );
         } else {
-            println!("{}", path.to_string_lossy());
+            let _ = writeln!(stdout, "{}", path.to_string_lossy());
         }
         *header_printed = true;
     }
@@ -351,32 +386,34 @@ fn report_match(
     // Print file path for the match (if not grouping)
     if !cfg.group {
         if cfg.color {
-            print!(
+            let _ = write!(
+                stdout,
                 "{}{}{}:",
                 cfg.file_path_style.prefix(),
                 path.to_string_lossy(),
                 cfg.file_path_style.suffix()
             );
         } else {
-            print!("{}:", path.to_string_lossy());
+            let _ = write!(stdout, "{}:", path.to_string_lossy());
         }
     }
 
     // Print line number
     if cfg.color {
-        print!(
+        let _ = write!(
+            stdout,
             "{}{}{}:",
             cfg.line_num_style.prefix(),
             line + 1,
             cfg.line_num_style.suffix()
         );
     } else {
-        print!("{}:", line + 1);
+        let _ = write!(stdout, "{}:", line + 1);
     }
 
     // Print column number (if enabled)
     if cfg.column {
-        print!("{}:", column + 1);
+        let _ = write!(stdout, "{}:", column + 1);
     }
 
     // Print line
@@ -395,18 +432,19 @@ fn report_match(
     let before_match = &line[0..column];
     let match_ = &line[column..column + cfg.pattern.len()];
     let after_match = &line[column + cfg.pattern.len()..];
-    print!("{}", before_match);
+    let _ = write!(stdout, "{}", before_match);
     if cfg.color {
-        print!(
+        let _ = write!(
+            stdout,
             "{}{}{}",
             cfg.match_style.prefix(),
             match_,
             cfg.match_style.suffix()
         );
     } else {
-        print!("{}", match_);
+        let _ = write!(stdout, "{}", match_);
     }
-    println!("{}", after_match);
+    let _ = writeln!(stdout, "{}", after_match);
 }
 
 #[test]

@@ -1,3 +1,5 @@
+use std::ffi::OsString;
+
 use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg, ArgMatches};
 
 #[derive(Debug)]
@@ -40,7 +42,11 @@ pub(crate) struct NodeKinds {
     pub(crate) comment: bool,
 }
 
-pub(crate) fn parse_args<'a>() -> Args<'a> {
+pub(crate) fn parse_args_safe<'a, I, T>(args_iter: I) -> Result<Args<'a>, clap::Error>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
     let mut version = crate_version!().to_owned();
     let commit_hash = env!("GIT_HASH");
     if !commit_hash.is_empty() {
@@ -124,9 +130,10 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
             .required(false)
             .short("k")
             .long("kind")
-            .long_help(KIND_HELP_STR))
+            .long_help(KIND_HELP_STR)
+        )
         .after_help(EXAMPLES_STR)
-        .get_matches();
+        .get_matches_from_safe(args_iter)?;
 
     let pattern = m.value_of("PATTERN").unwrap().to_owned();
     let path = m.value_of("PATH").map(|s| s.to_owned());
@@ -170,7 +177,10 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
                         kinds.string = true;
                     }
                     other => {
-                        eprintln!("Invalid kind: {}, expected a comma-separated list of: 'identifier', 'comment', 'string'", other);
+                        eprintln!(
+                            "Invalid kind: {}, expected a comma-separated list of: 'identifier', 'comment', 'string'",
+                            other
+                        );
                         ::std::process::exit(1);
                     }
                 }
@@ -184,7 +194,7 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         },
     };
 
-    Args {
+    Ok(Args {
         pattern,
         path,
         column,
@@ -194,7 +204,7 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         whole_word,
         node_kinds,
         matches: m,
-    }
+    })
 }
 
 #[rustfmt::skip]
