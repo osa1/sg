@@ -86,10 +86,18 @@ where
             Arg::with_name("group")
                 .takes_value(false)
                 .long("group")
-                .help("Group matches by file name, print file name once before matches (enabled by default)")
+                .help(
+                    "Group matches by file name, \
+                    print file name once before matches (enabled by default)",
+                )
                 .overrides_with("nogroup"),
         )
-        .arg(Arg::with_name("nogroup").takes_value(false).long("nogroup").help("Print file name in each match"))
+        .arg(
+            Arg::with_name("nogroup")
+                .takes_value(false)
+                .long("nogroup")
+                .help("Print file name in each match"),
+        )
         .arg(
             Arg::with_name("column")
                 .takes_value(false)
@@ -100,7 +108,10 @@ where
             Arg::with_name("smart-case")
                 .takes_value(false)
                 .long("smart-case")
-                .help("Match case insensitively unless PATTERN contains uppercase characters (enabled by default)")
+                .help(
+                    "Match case insensitively unless PATTERN \
+                    contains uppercase characters (enabled by default)",
+                )
                 .short("S"),
         )
         .arg(
@@ -119,18 +130,18 @@ where
         )
         .arg(
             Arg::with_name("word")
-            .takes_value(false)
-            .long("word")
-            .short("w")
-            .help("Only match whole words")
+                .takes_value(false)
+                .long("word")
+                .short("w")
+                .help("Only match whole words"),
         )
         .arg(
             Arg::with_name("kind")
-            .takes_value(true)
-            .required(false)
-            .short("k")
-            .long("kind")
-            .long_help(KIND_HELP_STR)
+                .takes_value(true)
+                .required(false)
+                .short("k")
+                .long("kind")
+                .long_help(KIND_HELP_STR),
         )
         .after_help(EXAMPLES_STR)
         .get_matches_from_safe(args_iter)?;
