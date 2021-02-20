@@ -98,7 +98,9 @@ fn report_node_match<W: Write>(
     }
 
     // Start highlighting
-    output.push_str(&cfg.match_style.prefix().to_string());
+    if cfg.color {
+        output.push_str(&cfg.match_style.prefix().to_string());
+    }
 
     // Print captured
     for c in capture_str.chars() {
@@ -106,7 +108,9 @@ fn report_node_match<W: Write>(
     }
 
     // Stop highlighting
-    output.push_str(&cfg.match_style.suffix().to_string());
+    if cfg.color {
+        output.push_str(&cfg.match_style.suffix().to_string());
+    }
 
     // Print remaining part of the last line
     for c in file_contents[node_range.end_byte..].chars() {

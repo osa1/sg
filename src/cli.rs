@@ -87,7 +87,10 @@ where
             Arg::with_name("PATTERN")
                 .takes_value(true)
                 .required(true)
-                .help("A pattern, tree-sitter query (when using --qs), or tree-sitter query file name (when using --qn)")
+                .help(
+                    "A pattern, tree-sitter query (when using --qs), \
+                    or tree-sitter query file name (when using --qn)",
+                ),
         )
         .arg(Arg::with_name("PATH").takes_value(true).required(false))
         .arg(
@@ -166,24 +169,24 @@ where
         )
         .arg(
             Arg::with_name("query-name")
-            .required(false)
-            .long("qn")
-            .long_help(QUERY_NAME_HELP)
-            .overrides_with("query-str")
+                .required(false)
+                .long("qn")
+                .long_help(QUERY_NAME_HELP)
+                .overrides_with("query-str"),
         )
         .arg(
             Arg::with_name("query-str")
-            .required(false)
-            .long("qs")
-            .long_help(QUERY_STR_HELP)
+                .required(false)
+                .long("qs")
+                .long_help(QUERY_STR_HELP),
         )
         .arg(
             Arg::with_name("capture")
-            .short("c")
-            .takes_value(true)
-            .required(false)
-            .multiple(true)
-            .number_of_values(1)
+                .short("c")
+                .takes_value(true)
+                .required(false)
+                .multiple(true)
+                .number_of_values(1),
         )
         .after_help(HELP_MORE)
         .get_matches_from_safe(args_iter)?;

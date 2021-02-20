@@ -81,3 +81,23 @@ fn simple_word_id() {
          1:fn test() {\n"
     );
 }
+
+#[test]
+fn simple_query_string() {
+    let str = run_args(&[
+        "sg",
+        "--rust",
+        "(function_item name: (identifier) @id)",
+        "--qs",
+        "test_files/simple",
+        "--nocolor",
+    ]);
+
+    assert_eq!(
+        str,
+        "test_files/simple/simple.rs\n\
+         0:fn test() {\n\
+         6:fn another_function() {\n\
+         7:    fn inner_function() {}\n"
+    );
+}
