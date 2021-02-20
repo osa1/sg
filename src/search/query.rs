@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::path::Path;
 
 use once_cell::unsync::Lazy;
@@ -6,7 +7,8 @@ use tree_sitter::{Node, Query, QueryCursor};
 use crate::report::{print_file_path, print_header, print_line_number};
 use crate::Cfg;
 
-pub(crate) fn run_query(
+pub(crate) fn run_query<W: Write>(
+    stdout: &mut W,
     path: &Path,
     query: &Query,
     captures: &[Option<String>], // Expected Values of captures, indexed by capture index
@@ -49,6 +51,7 @@ pub(crate) fn run_query(
 
             if report {
                 report_node_match(
+                    stdout,
                     cfg,
                     path,
                     node,
@@ -66,7 +69,8 @@ fn ts_text_callback<'a>(source: &'a str) -> impl Fn(Node) -> &'a [u8] {
     move |n| &source.as_bytes()[n.byte_range()]
 }
 
-fn report_node_match(
+fn report_node_match<W: Write>(
+    stdout: &mut W,
     cfg: &Cfg,
     path: &Path,
     node: Node,
@@ -77,9 +81,9 @@ fn report_node_match(
 ) {
     let node_range = node.range();
 
-    print_header(cfg, path, header_printed, first);
-    print_file_path(cfg, path);
-    print_line_number(cfg, node_range.start_point.row);
+    print_header(stdout, cfg, path, header_printed, first);
+    print_file_path(stdout, cfg, path);
+    print_line_number(stdout, cfg, node_range.start_point.row);
 
     let line_start = node_range.start_point.row;
     let col_start = node_range.start_point.column;
@@ -113,5 +117,5 @@ fn report_node_match(
         output.push(c);
     }
 
-    println!("{}", output);
+    let _ = writeln!(stdout, "{}", output);
 }

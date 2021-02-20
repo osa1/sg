@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::io::Write;
 use std::path::Path;
 
 use once_cell::unsync::Lazy;
@@ -7,7 +8,8 @@ use tree_sitter::Node;
 use crate::report::{print_file_path, print_header, print_line_number};
 use crate::Cfg;
 
-pub(crate) fn search_file(
+pub(crate) fn search_file<W: Write>(
+    stdout: &mut W,
     path: &Path,
     pattern: &str,
     case_sensitive: bool,
@@ -51,6 +53,7 @@ pub(crate) fn search_file(
 
             for match_ in match_token(token_str, pattern, is_id, cfg.whole_word, case_sensitive) {
                 report_match(
+                    stdout,
                     cfg,
                     pattern,
                     path,
@@ -127,7 +130,8 @@ fn check_word_bounds(text: &str, match_begin: usize, match_end: usize) -> bool {
     true
 }
 
-fn report_match(
+fn report_match<W: Write>(
+    stdout: &mut W,
     cfg: &Cfg,
     pattern: &str,
     path: &Path,
@@ -145,13 +149,13 @@ fn report_match(
     let line = pos.row + token_line;
     let column = token_col;
 
-    print_header(cfg, path, header_printed, first);
-    print_file_path(cfg, path);
-    print_line_number(cfg, line + 1);
+    print_header(stdout, cfg, path, header_printed, first);
+    print_file_path(stdout, cfg, path);
+    print_line_number(stdout, cfg, line + 1);
 
     // Print column number (if enabled)
     if cfg.column {
-        print!("{}:", column + 1);
+        let _ = write!(stdout, "{}:", column + 1);
     }
 
     // Print line, highlighting the match
@@ -170,18 +174,19 @@ fn report_match(
     let before_match = &line[0..column];
     let match_ = &line[column..column + pattern.len()];
     let after_match = &line[column + pattern.len()..];
-    print!("{}", before_match);
+    let _ = write!(stdout, "{}", before_match);
     if cfg.color {
-        print!(
+        let _ = write!(
+            stdout,
             "{}{}{}",
             cfg.match_style.prefix(),
             match_,
             cfg.match_style.suffix()
         );
     } else {
-        print!("{}", match_);
+        let _ = write!(stdout, "{}", match_);
     }
-    println!("{}", after_match);
+    let _ = writeln!(stdout, "{}", after_match);
 }
 
 fn get_token_line_col(token: &str, column0: usize, idx: usize) -> (usize, usize) {

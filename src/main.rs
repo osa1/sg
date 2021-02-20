@@ -2,7 +2,9 @@ mod report;
 mod search;
 
 use std::cell::RefCell;
+use std::ffi::OsString;
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 use std::process::exit;
 
@@ -10,6 +12,9 @@ use fxhash::FxHashMap;
 use tree_sitter::{Language, Parser, Query};
 
 mod cli;
+
+#[cfg(test)]
+mod tests;
 
 extern "C" {
     fn tree_sitter_rust() -> Language;
@@ -128,6 +133,18 @@ fn mk_search_mode(
 }
 
 fn main() {
+    let stdout = std::io::stdout();
+    let mut stdout_lock = stdout.lock();
+    let ret = run(&mut stdout_lock, &mut std::env::args_os());
+    std::process::exit(ret);
+}
+
+pub(crate) fn run<W, I, T>(stdout: &mut W, args_iter: I) -> i32
+where
+    W: Write,
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
     let cli::Args {
         pattern,
         path,
@@ -140,7 +157,13 @@ fn main() {
         query,
         captures,
         matches,
-    } = cli::parse_args();
+    } = match cli::parse_args_safe(args_iter) {
+        Err(err) => {
+            eprintln!("{}", err.message);
+            return 1;
+        }
+        Ok(args) => args,
+    };
 
     let mut lang: Option<(Language, &'static str)> = None;
 
@@ -155,7 +178,7 @@ fn main() {
     let (lang, lang_ext) = match lang {
         None => {
             eprintln!("No language specified; aborting.");
-            exit(1);
+            return 1;
         }
         Some(lang) => lang,
     };
@@ -185,13 +208,21 @@ fn main() {
     let mut first = true;
 
     if path.is_dir() {
-        walk_path(&search_mode, &path, &cfg, &mut first);
+        walk_path(stdout, &search_mode, &path, &cfg, &mut first);
     } else {
-        search_file(&search_mode, &path, &cfg, &mut first);
+        search_file(stdout, &search_mode, &path, &cfg, &mut first);
     }
+
+    0
 }
 
-fn walk_path(search_mode: &SearchMode, path: &Path, cfg: &Cfg, first: &mut bool) {
+fn walk_path<W: Write>(
+    stdout: &mut W,
+    search_mode: &SearchMode,
+    path: &Path,
+    cfg: &Cfg,
+    first: &mut bool,
+) {
     let dir_contents = match fs::read_dir(path) {
         Ok(ok) => ok,
         Err(err) => {
@@ -224,16 +255,22 @@ fn walk_path(search_mode: &SearchMode, path: &Path, cfg: &Cfg, first: &mut bool)
         };
 
         if meta.is_dir() {
-            walk_path(search_mode, &path, cfg, first);
+            walk_path(stdout, search_mode, &path, cfg, first);
         } else if let Some(ext) = path.extension() {
             if ext == cfg.ext {
-                search_file(search_mode, &path, cfg, first);
+                search_file(stdout, search_mode, &path, cfg, first);
             }
         }
     }
 }
 
-fn search_file(search_mode: &SearchMode, path: &Path, cfg: &Cfg, first: &mut bool) {
+fn search_file<W: Write>(
+    stdout: &mut W,
+    search_mode: &SearchMode,
+    path: &Path,
+    cfg: &Cfg,
+    first: &mut bool,
+) {
     let contents = match fs::read_to_string(path) {
         Ok(ok) => ok,
         Err(err) => {
@@ -256,9 +293,18 @@ fn search_file(search_mode: &SearchMode, path: &Path, cfg: &Cfg, first: &mut boo
         SearchMode::Pattern(Pat {
             word,
             case_sensitive,
-        }) => search::word::search_file(path, word, *case_sensitive, cfg, &contents, root, first),
+        }) => search::word::search_file(
+            stdout,
+            path,
+            word,
+            *case_sensitive,
+            cfg,
+            &contents,
+            root,
+            first,
+        ),
         SearchMode::Query(query, captures) => {
-            search::query::run_query(path, query, captures, cfg, &contents, root, first)
+            search::query::run_query(stdout, path, query, captures, cfg, &contents, root, first)
         }
     }
 }

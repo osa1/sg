@@ -1,3 +1,5 @@
+use std::ffi::OsString;
+
 use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg, ArgMatches};
 use fxhash::FxHashMap;
 
@@ -56,7 +58,11 @@ pub(crate) enum Query {
     Name,
 }
 
-pub(crate) fn parse_args<'a>() -> Args<'a> {
+pub(crate) fn parse_args_safe<'a, I, T>(args_iter: I) -> Result<Args<'a>, clap::Error>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
     let mut version = crate_version!().to_owned();
     let commit_hash = env!("GIT_HASH");
     if !commit_hash.is_empty() {
@@ -101,10 +107,18 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
             Arg::with_name("group")
                 .takes_value(false)
                 .long("group")
-                .help("Group matches by file name, print file name once before matches (enabled by default)")
+                .help(
+                    "Group matches by file name, \
+                    print file name once before matches (enabled by default)",
+                )
                 .overrides_with("nogroup"),
         )
-        .arg(Arg::with_name("nogroup").takes_value(false).long("nogroup").help("Print file name in each match"))
+        .arg(
+            Arg::with_name("nogroup")
+                .takes_value(false)
+                .long("nogroup")
+                .help("Print file name in each match"),
+        )
         .arg(
             Arg::with_name("column")
                 .takes_value(false)
@@ -115,7 +129,10 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
             Arg::with_name("smart-case")
                 .takes_value(false)
                 .long("smart-case")
-                .help("Match case insensitively unless PATTERN contains uppercase characters (enabled by default)")
+                .help(
+                    "Match case insensitively unless PATTERN \
+                    contains uppercase characters (enabled by default)",
+                )
                 .short("S"),
         )
         .arg(
@@ -134,18 +151,18 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         )
         .arg(
             Arg::with_name("word")
-            .takes_value(false)
-            .long("word")
-            .short("w")
-            .help("Only match whole words")
+                .takes_value(false)
+                .long("word")
+                .short("w")
+                .help("Only match whole words"),
         )
         .arg(
             Arg::with_name("kind")
-            .takes_value(true)
-            .required(false)
-            .short("k")
-            .long("kind")
-            .long_help(KIND_HELP)
+                .takes_value(true)
+                .required(false)
+                .short("k")
+                .long("kind")
+                .long_help(KIND_HELP),
         )
         .arg(
             Arg::with_name("query-name")
@@ -169,7 +186,7 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
             .number_of_values(1)
         )
         .after_help(HELP_MORE)
-        .get_matches();
+        .get_matches_from_safe(args_iter)?;
 
     let pattern = m.value_of("PATTERN").unwrap().to_owned();
     let path = m.value_of("PATH").map(str::to_owned);
@@ -215,7 +232,10 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
                         kinds.string = true;
                     }
                     other => {
-                        eprintln!("Invalid kind: {}, expected a comma-separated list of: 'identifier', 'comment', 'string'", other);
+                        eprintln!(
+                            "Invalid kind: {}, expected a comma-separated list of: 'identifier', 'comment', 'string'",
+                            other
+                        );
                         ::std::process::exit(1);
                     }
                 }
@@ -264,7 +284,7 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         _ => Default::default(),
     };
 
-    Args {
+    Ok(Args {
         pattern,
         path,
         column,
@@ -276,7 +296,7 @@ pub(crate) fn parse_args<'a>() -> Args<'a> {
         query,
         captures,
         matches: m,
-    }
+    })
 }
 
 // TODO: mention these
@@ -315,8 +335,10 @@ static KIND_HELP: &str =
 
 Example: --kind identifier,comment,string";
 
+#[rustfmt::skip]
 static QUERY_NAME_HELP: &str =
     "Interpret <PATTERN> as name of the tree-sitter query to run on the AST. See \"queries\" below for details.";
 
+#[rustfmt::skip]
 static QUERY_STR_HELP: &str =
     "Interpret <PATTERN> as a tree-sitter query to run on the AST. See \"queries\" below for details.";
