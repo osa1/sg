@@ -56,10 +56,10 @@ pub(crate) fn print_line_number<W: Write>(stdout: &mut W, cfg: &Cfg, line: usize
             stdout,
             "{}{}{}:",
             cfg.line_num_style.prefix(),
-            line + 1,
+            line,
             cfg.line_num_style.suffix()
         );
     } else {
-        let _ = write!(stdout, "{}:", line + 1);
+        let _ = write!(stdout, "{}:", line);
     }
 }
