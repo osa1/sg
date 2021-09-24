@@ -268,23 +268,35 @@ fn walk_ast<W: Write>(
     }
 }
 
-fn get_token_line_col(token: &str, column0: usize, idx: usize) -> (usize, usize) {
-    let mut chars = token.chars();
+fn get_token_line_col(token: &str, column0: usize, mut byte_idx: usize) -> (usize, usize, usize) {
+    let mut chars = token.chars().peekable();
 
     let mut line = 0;
     let mut col = column0;
+    let mut col_byte_idx = 0;
 
-    for _ in 0..idx {
-        let c = chars.next();
-        if c == Some('\n') {
+    while byte_idx != 0 {
+        let c = chars.next().unwrap();
+        byte_idx -= c.len_utf8();
+        if c == '\r' {
+            if let Some('\n') = chars.peek() {
+                let _ = chars.next(); // consume '\n'
+                byte_idx -= '\n'.len_utf8();
+            }
             line += 1;
             col = 0;
+            col_byte_idx = 0;
+        } else if c == '\n' {
+            line += 1;
+            col = 0;
+            col_byte_idx = 0;
         } else {
             col += 1;
+            col_byte_idx += c.len_utf8();
         }
     }
 
-    (line, col)
+    (line, col, col_byte_idx)
 }
 
 fn check_word_bounds(text: &str, match_begin: usize, match_end: usize) -> bool {
@@ -303,6 +315,7 @@ fn check_word_bounds(text: &str, match_begin: usize, match_end: usize) -> bool {
     true
 }
 
+/// Returns byte indices of matches of `pattern` in `token`
 fn match_token(
     token: &str,
     pattern: &str,
@@ -343,6 +356,7 @@ fn match_token(
         .collect()
 }
 
+// NB. `match_byte_idx` is a byte index to `token_str`
 fn report_match<W: Write>(
     stdout: &mut W,
     cfg: &Cfg,
@@ -350,16 +364,16 @@ fn report_match<W: Write>(
     node: &Node,
     token_str: &str,
     lines: &[&str],
-    match_: usize,
+    match_byte_idx: usize,
     header_printed: &mut bool,
     first: &mut bool,
 ) {
     let pos = node.start_position();
 
-    let (token_line, token_col) = get_token_line_col(token_str.as_ref(), pos.column, match_);
+    let (token_line, column, column_byte) =
+        get_token_line_col(token_str, pos.column, match_byte_idx);
 
     let line = pos.row + token_line;
-    let column = token_col;
 
     // Print header (if grouping)
     if !*header_printed && cfg.group {
@@ -429,9 +443,9 @@ fn report_match<W: Write>(
         }
     };
 
-    let before_match = &line[0..column];
-    let match_ = &line[column..column + cfg.pattern.len()];
-    let after_match = &line[column + cfg.pattern.len()..];
+    let before_match = &line[0..column_byte];
+    let match_ = &line[column_byte..column_byte + cfg.pattern.len()];
+    let after_match = &line[column_byte + cfg.pattern.len()..];
     let _ = write!(stdout, "{}", before_match);
     if cfg.color {
         let _ = write!(

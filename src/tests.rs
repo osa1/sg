@@ -81,3 +81,22 @@ fn simple_word_id() {
          1:fn test() {\n"
     );
 }
+
+#[test]
+fn issue_5_1() {
+    let str = run_args(&[
+        "sg",
+        "--ocaml",
+        "-k",
+        "identifier",
+        "1",
+        "test_files/issue_5_1.ml",
+        "--nocolor",
+    ]);
+
+    assert_eq!(
+        str,
+        "test_files/issue_5_1.ml\n\
+         4:1\n"
+    );
+}
