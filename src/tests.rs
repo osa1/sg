@@ -100,3 +100,22 @@ fn issue_5_1() {
          4:1\n"
     );
 }
+
+#[test]
+fn issue_5_2() {
+    let str = run_args(&[
+        "sg",
+        "--ocaml",
+        "-k",
+        "identifier",
+        "1",
+        "test_files/issue_5_2.ml",
+        "--column",
+    ]);
+
+    assert_eq!(
+        str,
+        "\u{1b}[1;32mtest_files/issue_5_2.ml\u{1b}[0m\n\
+         \u{1b}[1;33m3\u{1b}[0m:32:let checkpoint_max_count = ref \u{1b}[43;30m1\u{1b}[0m5\n"
+    );
+}

@@ -240,7 +240,7 @@ fn walk_ast<W: Write>(
                 Ok(token_str) => token_str,
             };
 
-            for match_ in match_token(
+            for match_byte_idx in match_token(
                 token_str,
                 &cfg.pattern,
                 is_id,
@@ -254,7 +254,7 @@ fn walk_ast<W: Write>(
                     &node,
                     token_str,
                     &lines,
-                    match_,
+                    match_byte_idx,
                     &mut header_printed,
                     first,
                 );
@@ -370,8 +370,21 @@ fn report_match<W: Write>(
 ) {
     let pos = node.start_position();
 
-    let (token_line, column, column_byte) =
+    let (token_line, column, mut column_byte) =
         get_token_line_col(token_str, pos.column, match_byte_idx);
+
+    // If we didn't skip any lines, `column_byte` need to be added to the beginning of the token
+    if token_line == 0 {
+        // Find byte index of the line `node` starts
+        let node_row: usize = pos.row;
+        // TODO: Cache line start byte indices to avoid repeatedly computing this for matches in
+        // the same file
+        // TODO: This assumes one-character line ending
+        let token_line_byte_idx: usize = lines[0..node_row].iter().map(|s| s.len() + 1).sum();
+        column_byte += node.start_byte() - token_line_byte_idx;
+    }
+
+    let column_byte = column_byte;
 
     let line = pos.row + token_line;
 
