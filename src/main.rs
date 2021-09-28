@@ -356,7 +356,33 @@ fn match_token(
         .collect()
 }
 
-// NB. `match_byte_idx` is a byte index to `token_str`
+/// # Arguments
+///
+/// * `stdout`: A `Write` implementation to write the report. This function does not use process
+///   stdout directly, writes to this instead.
+///
+/// * `cfg`: User configuration (derived from defaults and CLI args)
+///
+/// * `path`: Path of the file with the match. Will be printed directly to `stdout`.
+///
+/// * `node`: tree-sitter node with the match. If you convert this node to string with
+///   `node.utf8_text()` (use `token_str`), then the searched term will be in the string.
+///
+/// * `token_str`: `node.utf8_text()`
+///
+/// * `lines`: Lines of the file that `node` is in (the file at `path`).
+///
+/// * `match_byte_idx`: Byte indices (in `token_str`) of matches of the searched term in
+///   `token_str`.
+///
+/// * `header_printed`: Whether we've printed a header for the matches in the current file. When
+///   grouping matches (default, without `--nogroup`) we print one header per file. With
+///   `--nogroup` we print the header for each match.
+///
+/// * `first`: When grouping (default, without `--nogroup`) we print one header per file, so we
+///   keep track of whether the match is the first match. If it is, then we print the header
+///   without `--nogroup`.
+///
 fn report_match<W: Write>(
     stdout: &mut W,
     cfg: &Cfg,
