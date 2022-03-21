@@ -13,9 +13,9 @@ identifiers and keywords, ignoring string literals and comments.
 sg aims to be a drop-in replacement for [ag][2], though a lot of flags are currently
 missing.
 
-Under the hood sg uses [tree-sitter][1] parsers. Currently sg comes with Rust
-and OCaml parsers, which are enabled with `--rust` and `--ocaml` flags,
-respectively.
+Under the hood sg uses [tree-sitter][1] parsers. Currently sg comes with Rust,
+OCaml, and Dart parsers, which are enabled with `--rust`, `--ocaml`, and
+`--dart` flags, respectively.
 
 (For languages that are not built-in to sg we could implement loading parsers
 from shared libraries, but that's currently not implemented)
