@@ -13,8 +13,9 @@ mod cli;
 mod tests;
 
 extern "C" {
-    fn tree_sitter_rust() -> Language;
+    fn tree_sitter_dart() -> Language;
     fn tree_sitter_ocaml() -> Language;
+    fn tree_sitter_rust() -> Language;
 }
 
 struct Cfg {
@@ -83,6 +84,10 @@ where
 
     if matches.is_present("ocaml") {
         lang = Some((unsafe { tree_sitter_ocaml() }, "ml"));
+    }
+
+    if matches.is_present("dart") {
+        lang = Some((unsafe { tree_sitter_dart() }, "dart"));
     }
 
     let (lang, lang_ext) = match lang {

@@ -4,3 +4,6 @@
 [submodule "parsers/ocaml"]
 	path = parsers/ocaml
 	url = https://github.com/tree-sitter/tree-sitter-ocaml.git
+[submodule "parsers/dart"]
+	path = parsers/dart
+	url = https://github.com/UserNobody14/tree-sitter-dart.git

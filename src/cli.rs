@@ -67,6 +67,11 @@ where
                 .long("ocaml")
                 .help("Search OCaml files"),
         )
+        .arg(
+            Arg::with_name("dart")
+                .long("dart")
+                .help("Search Dart files"),
+        )
         .arg(Arg::with_name("PATTERN").takes_value(true).required(true))
         .arg(Arg::with_name("PATH").takes_value(true).required(false))
         .arg(
