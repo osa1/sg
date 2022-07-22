@@ -70,6 +70,7 @@ where
         whole_word,
         node_kinds,
         matches,
+        ignores,
     } = match cli::parse_args_safe(args_iter) {
         Err(err) => {
             eprintln!("{}", err.message);
@@ -134,7 +135,7 @@ where
     let mut first = true;
 
     if path.is_dir() {
-        walk_path(stdout, &path, &cfg, &mut first);
+        walk_path(stdout, &path, &cfg, &mut first, &ignores);
     } else {
         search_file(stdout, &path, &cfg, &mut first);
     }
@@ -142,7 +143,13 @@ where
     0
 }
 
-fn walk_path<W: Write>(stdout: &mut W, path: &Path, cfg: &Cfg, first: &mut bool) {
+fn walk_path<W: Write>(
+    stdout: &mut W,
+    path: &Path,
+    cfg: &Cfg,
+    first: &mut bool,
+    ignores: &[String],
+) {
     let dir_contents = match fs::read_dir(path) {
         Ok(ok) => ok,
         Err(err) => {
@@ -155,7 +162,7 @@ fn walk_path<W: Write>(stdout: &mut W, path: &Path, cfg: &Cfg, first: &mut bool)
         }
     };
 
-    for file in dir_contents {
+    'dir_loop: for file in dir_contents {
         let file = match file {
             Ok(ok) => ok,
             Err(err) => {
@@ -164,21 +171,34 @@ fn walk_path<W: Write>(stdout: &mut W, path: &Path, cfg: &Cfg, first: &mut bool)
             }
         };
 
-        let path = file.path();
+        let full_path = file.path();
+
+        if !ignores.is_empty() {
+            let full_path_str = full_path.to_string_lossy();
+            for ignore in ignores {
+                if full_path_str.contains(ignore) {
+                    continue 'dir_loop;
+                }
+            }
+        }
 
         let meta = match file.metadata() {
             Ok(ok) => ok,
             Err(err) => {
-                eprintln!("Unable to get {} metadata: {}", path.to_string_lossy(), err);
+                eprintln!(
+                    "Unable to get {} metadata: {}",
+                    full_path.to_string_lossy(),
+                    err
+                );
                 continue;
             }
         };
 
         if meta.is_dir() {
-            walk_path(stdout, &path, cfg, first);
-        } else if let Some(ext) = path.extension() {
+            walk_path(stdout, &full_path, cfg, first, ignores);
+        } else if let Some(ext) = full_path.extension() {
             if ext == cfg.ext {
-                search_file(stdout, &path, cfg, first);
+                search_file(stdout, &full_path, cfg, first);
             }
         }
     }

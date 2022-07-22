@@ -20,6 +20,8 @@ pub(crate) struct Args<'a> {
     pub(crate) node_kinds: NodeKinds,
     /// Rest of the matches (`--rust`, `--ocaml` etc.)
     pub(crate) matches: ArgMatches<'a>,
+    /// Ignored files or directores (patterns)
+    pub(crate) ignores: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -127,6 +129,14 @@ where
                 .short("s"),
         )
         .arg(
+            Arg::with_name("ignore")
+                .takes_value(true)
+                .long("ignore")
+                .multiple(true)
+                .number_of_values(1)
+                .help("Ignore files/directories whose names macth this pattern"),
+        )
+        .arg(
             Arg::with_name("ignore-case")
                 .takes_value(false)
                 .long("ignore-case")
@@ -210,6 +220,11 @@ where
         },
     };
 
+    let ignores: Vec<String> = m
+        .values_of("ignore")
+        .map(|ignore| ignore.map(|s| s.to_owned()).collect())
+        .unwrap_or_default();
+
     Ok(Args {
         pattern,
         path,
@@ -220,6 +235,7 @@ where
         whole_word,
         node_kinds,
         matches: m,
+        ignores,
     })
 }
 
