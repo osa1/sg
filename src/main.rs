@@ -65,7 +65,7 @@ where
         path,
         column,
         nogroup,
-        nocolor,
+        mut nocolor,
         casing,
         whole_word,
         node_kinds,
@@ -116,6 +116,10 @@ where
             false
         }
     };
+
+    if !nocolor && !atty::is(atty::Stream::Stdout) {
+        nocolor = true;
+    }
 
     let cfg = Cfg {
         color: !nocolor,
