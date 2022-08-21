@@ -50,11 +50,11 @@ struct Cfg {
 fn main() {
     let stdout = std::io::stdout();
     let mut stdout_lock = stdout.lock();
-    let ret = run(&mut stdout_lock, &mut std::env::args_os());
+    let ret = run(&mut stdout_lock, &mut std::env::args_os(), false);
     std::process::exit(ret);
 }
 
-pub(crate) fn run<W, I, T>(stdout: &mut W, args_iter: I) -> i32
+pub(crate) fn run<W, I, T>(stdout: &mut W, args_iter: I, assume_color_support: bool) -> i32
 where
     W: Write,
     I: IntoIterator<Item = T>,
@@ -117,7 +117,7 @@ where
         }
     };
 
-    if !nocolor && !atty::is(atty::Stream::Stdout) {
+    if !nocolor && !assume_color_support && !atty::is(atty::Stream::Stdout) {
         nocolor = true;
     }
 

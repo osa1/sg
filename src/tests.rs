@@ -9,6 +9,7 @@ fn run_args(args: &[&str]) -> String {
     let ret = run(
         &mut stdout,
         args.iter().map(|arg| OsString::try_from(arg).unwrap()),
+        true,
     );
 
     assert_eq!(ret, 0);
