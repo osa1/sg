@@ -28,6 +28,13 @@ static DART_LANG: LangDir = LangDir {
     scanner_cplusplus: false,
 };
 
+static JS_LANG: LangDir = LangDir {
+    lang_name: "js",
+    path: "parsers/js/src",
+    scanner_name: "scanner.c",
+    scanner_cplusplus: false,
+};
+
 impl LangDir {
     fn scanner_path(&self) -> String {
         format!("{}/{}", self.path, self.scanner_name)
@@ -38,7 +45,7 @@ impl LangDir {
     }
 }
 
-static LANGS: [&LangDir; 3] = [&OCAML_LANG, &RUST_LANG, &DART_LANG];
+static LANGS: [&LangDir; 4] = [&OCAML_LANG, &RUST_LANG, &DART_LANG, &JS_LANG];
 
 fn main() {
     for lang in LANGS.iter() {

@@ -18,6 +18,7 @@ extern "C" {
     fn tree_sitter_dart() -> Language;
     fn tree_sitter_ocaml() -> Language;
     fn tree_sitter_rust() -> Language;
+    fn tree_sitter_javascript() -> Language;
 }
 
 struct Cfg {
@@ -91,6 +92,10 @@ where
 
     if matches.is_present("dart") {
         lang = Some((unsafe { tree_sitter_dart() }, "dart"));
+    }
+
+    if matches.is_present("js") {
+        lang = Some((unsafe { tree_sitter_javascript() }, "js"));
     }
 
     let (lang, lang_ext) = match lang {

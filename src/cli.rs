@@ -74,6 +74,11 @@ where
                 .long("dart")
                 .help("Search Dart files"),
         )
+        .arg(
+            Arg::with_name("js")
+                .long("js")
+                .help("Search JavaScript files"),
+        )
         .arg(Arg::with_name("PATTERN").takes_value(true).required(true))
         .arg(Arg::with_name("PATH").takes_value(true).required(false))
         .arg(

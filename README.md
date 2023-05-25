@@ -14,8 +14,8 @@ sg aims to be a drop-in replacement for [ag][2], though a lot of flags are curre
 missing.
 
 Under the hood sg uses [tree-sitter][1] parsers. Currently sg comes with Rust,
-OCaml, and Dart parsers, which are enabled with `--rust`, `--ocaml`, and
-`--dart` flags, respectively.
+OCaml, Dart, and JavaScript parsers, which are enabled with `--rust`,
+`--ocaml`, `--dart`, and `--js` flags, respectively.
 
 (For languages that are not built-in to sg we could implement loading parsers
 from shared libraries, but that's currently not implemented)
