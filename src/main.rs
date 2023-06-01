@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::ffi::OsString;
 use std::fs;
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::path::Path;
 
 use tree_sitter::{Language, Node, Parser};
@@ -122,7 +122,7 @@ where
         }
     };
 
-    if !nocolor && !assume_color_support && !atty::is(atty::Stream::Stdout) {
+    if !nocolor && !assume_color_support && !std::io::stdout().is_terminal() {
         nocolor = true;
     }
 
