@@ -9,7 +9,7 @@ repository = "https://github.com/osa1/sg"
 
 [dependencies]
 ansi_term = "0.12"
-clap = "2.33"
+clap = { version = "2.33", default_features = false }
 tree-sitter = "0.20.6"
 
 [build-dependencies]
