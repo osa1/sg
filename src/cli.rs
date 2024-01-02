@@ -181,7 +181,7 @@ where
         .index_of("ignore-case")
         .map(|idx| (Casing::Insensitive, idx));
 
-    let mut casing_args = vec![smart_case_pos, case_sensitive_pos, ignore_case_pos];
+    let mut casing_args = [smart_case_pos, case_sensitive_pos, ignore_case_pos];
     casing_args.sort_by_key(|arg| arg.as_ref().map(|(_, idx)| *idx));
 
     let casing = match casing_args.last().unwrap() {
